@@ -14,8 +14,8 @@
 
     <div class="container">
         <header>
-            <h1>⚛️ Vật Lý 10 Master</h1>
-            <p>Hệ thống ôn tập toàn diện: Trắc nghiệm - Điền từ - Tự luận</p>
+            <h1>CHUYỂN ĐỘNG</h1>
+            <p>các công thức chuyển động bạn nên học ngay bây giờ!</p>
         </header>
 
         <div class="tabs">
@@ -24,18 +24,35 @@
         </div>
 
         <div id="list-view" class="view-section active">
-            <div id="formulas-container"></div>
+            
+            <div class="sub-tabs">
+                <button class="sub-tab-btn active" onclick="switchListFilter('basic')">🌱 Cơ bản</button>
+                <button class="sub-tab-btn" onclick="switchListFilter('advanced')">🔥 Nâng cao</button>
+            </div>
+            <div id="formulas-container">
+                </div>
         </div>
 
         <div id="quiz-view" class="view-section">
             
             <div class="quiz-controls">
-                <label for="quiz-mode">Chế độ:</label>
-                <select id="quiz-mode" onchange="changeQuizMode()">
-                    <option value="flashcard">Lật thẻ (Flashcard)</option>
-                    <option value="multiple">Trắc nghiệm (Chọn đáp án)</option>
-                    <option value="fill">Điền khuyết (Tìm mảnh ghép)</option>
-                    <option value="essay">📝 Tự luận (Nhập công thức)</option> </select>
+                <div class="control-group">
+                    <label for="quiz-mode">Chế độ:</label>
+                    <select id="quiz-mode" onchange="changeQuizMode()">
+                        <option value="flashcard">Lật thẻ (Flashcard)</option>
+                        <option value="multiple">Trắc nghiệm</option>
+                        <option value="fill">Điền khuyết</option>
+                        <option value="essay">📝 Tự luận (MathLive)</option>
+                    </select>
+                </div>
+
+                <button id="btn-random" onclick="nextQuestion()">🎲 Đổi câu</button>
+
+                <label class="toggle-switch">
+                    <input type="checkbox" id="advanced-toggle" onchange="nextQuestion()">
+                    <span class="slider"></span>
+                    <span class="label-text">🤯 Nâng cao</span>
+                </label>
             </div>
 
             <div class="card quiz-card">

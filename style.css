@@ -99,3 +99,198 @@ math-field:focus-within {
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 600px) { .options-grid { grid-template-columns: 1fr; } }
+
+/* Thêm vào cuối file style.css */
+
+/* Căn chỉnh lại khu vực điều khiển để nút nằm ngang hàng */
+.quiz-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px; /* Khoảng cách giữa menu và nút */
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Trang trí nút Random */
+#btn-random {
+    padding: 8px 15px;
+    background-color: #8b5cf6; /* Màu tím nhạt trendy */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.95em;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+}
+
+#btn-random:hover {
+    background-color: #7c3aed; /* Tím đậm hơn khi di chuột */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(139, 92, 246, 0.4);
+}
+
+#btn-random:active {
+    transform: translateY(0);
+}
+
+/* --- Thêm vào cuối file style.css --- */
+
+/* Style cho nút Toggle Nâng cao */
+.toggle-switch {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    gap: 8px;
+    background: white;
+    padding: 5px 10px;
+    border-radius: 20px;
+    border: 1px solid #cbd5e1;
+    user-select: none;
+}
+
+.toggle-switch input {
+    display: none; /* Ẩn checkbox mặc định */
+}
+
+.toggle-switch .slider {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    background-color: #cbd5e1;
+    border-radius: 20px;
+    transition: .3s;
+}
+
+.toggle-switch .slider:before {
+    content: "";
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    border-radius: 50%;
+    transition: .3s;
+}
+
+/* Khi bật checkbox */
+.toggle-switch input:checked + .slider {
+    background-color: #ef4444; /* Màu đỏ cho chế độ khó */
+}
+
+.toggle-switch input:checked + .slider:before {
+    transform: translateX(16px);
+}
+
+.toggle-switch .label-text {
+    font-weight: bold;
+    color: #475569;
+    font-size: 0.9em;
+}
+
+.formula-card.advanced {
+    border-left-color: #ef4444; /* Đánh dấu màu đỏ trong danh sách */
+    background-color: #fff1f2;
+}
+
+/* --- COLLAPSE GROUP STYLES (Thêm vào cuối file) --- */
+
+/* Thanh tiêu đề nhóm (Bấm vào đây để thu gọn) */
+.group-header {
+    background: white;
+    padding: 15px 20px;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 5px solid var(--secondary); /* Màu xanh đậm */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    transition: all 0.2s;
+}
+
+.group-header:hover {
+    background-color: #f1f5f9;
+    transform: translateX(2px);
+}
+
+.group-header h3 {
+    margin: 0;
+    color: var(--secondary);
+    font-size: 1.1em;
+}
+
+/* Mũi tên chỉ hướng */
+.toggle-icon {
+    font-size: 1.2em;
+    color: var(--secondary);
+    transition: transform 0.3s ease;
+}
+
+/* Khi đang mở: Xoay mũi tên xuống */
+.group-header.active .toggle-icon {
+    transform: rotate(180deg);
+}
+
+/* Vùng chứa các công thức */
+.group-content {
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    max-height: 0; /* Mặc định đóng */
+}
+
+/* Class để mở nội dung */
+.group-content.open {
+    max-height: 2000px; /* Đủ lớn để hiện hết nội dung */
+    transition: max-height 0.5s ease-in;
+}
+
+/* Ẩn tiêu đề cũ do JS tạo ra để tránh trùng lặp */
+.group-title {
+    display: none;
+}
+
+/* --- SUB TABS STYLES (Thêm vào cuối file) --- */
+.sub-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px dashed #cbd5e1;
+}
+
+.sub-tab-btn {
+    padding: 6px 16px;
+    background: white;
+    border: 1px solid #cbd5e1;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.9em;
+    color: #64748b;
+    transition: all 0.2s;
+    font-weight: 600;
+}
+
+.sub-tab-btn:hover {
+    background: #f1f5f9;
+    color: var(--primary);
+}
+
+.sub-tab-btn.active {
+    background: var(--secondary); /* Màu xanh đậm */
+    color: white;
+    border-color: var(--secondary);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
