@@ -290,7 +290,7 @@ math-field:focus-within {
 
 .sub-tab-btn.active {
     background: var(--secondary); /* Màu xanh đậm */
-    color: white;
+    color: black;
     border-color: var(--secondary);
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
