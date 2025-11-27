@@ -294,3 +294,150 @@ math-field:focus-within {
     border-color: var(--secondary);
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
+
+/* --- THÊM VÀO CUỐI FILE style.css --- */
+
+/* GAME CONTAINER */
+.game-container {
+    position: relative;
+    width: 100%;
+    height: 600px;
+    background: radial-gradient(circle at bottom, #1e293b 0%, #0f172a 100%);
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    border: 2px solid #334155;
+}
+
+.game-header {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    color: white;
+    font-weight: bold;
+    font-size: 1.2em;
+    z-index: 10;
+    background: rgba(0,0,0,0.3);
+}
+
+/* OVERLAY (Start / Game Over) */
+.game-overlay {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(15, 23, 42, 0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+    color: white;
+    transition: opacity 0.3s;
+}
+
+#btn-start-game {
+    margin-top: 20px;
+    padding: 15px 40px;
+    font-size: 1.5em;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+    transition: transform 0.2s;
+}
+#btn-start-game:hover { transform: scale(1.1); }
+
+/* GAME PLAY AREA */
+#game-area {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+}
+
+/* METEOR (Thiên thạch) */
+.meteor {
+    position: absolute;
+    width: 120px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    text-align: center;
+    font-weight: bold;
+    color: #0f172a;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    border-bottom: 4px solid #cbd5e1;
+    z-index: 5;
+    transition: transform 0.1s;
+}
+.meteor::after {
+    content: '';
+    position: absolute;
+    top: -20px; left: 50%;
+    transform: translateX(-50%);
+    border-width: 10px;
+    border-style: solid;
+    border-color: transparent transparent rgba(255,255,255,0.9) transparent;
+}
+
+/* CONTROLS (Các nút bấm) */
+.game-controls {
+    position: absolute;
+    bottom: 0; left: 0; width: 100%;
+    padding: 10px;
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(5px);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    box-sizing: border-box;
+    z-index: 15;
+}
+
+.game-btn {
+    background: rgba(30, 41, 59, 0.9);
+    color: white;
+    border: 1px solid #475569;
+    padding: 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.1em;
+    transition: all 0.1s;
+}
+.game-btn:hover { background: #334155; border-color: var(--primary); }
+.game-btn:active { transform: scale(0.95); }
+
+/* EFFECTS */
+.laser-beam {
+    position: absolute;
+    width: 4px;
+    background: #ef4444;
+    bottom: 150px; /* Xuất phát từ control */
+    transform-origin: bottom center;
+    box-shadow: 0 0 10px #ef4444;
+    transition: height 0.1s linear;
+    z-index: 4;
+}
+
+.explosion {
+    position: absolute;
+    width: 50px; height: 50px;
+    background: orange;
+    border-radius: 50%;
+    animation: explode 0.3s ease-out forwards;
+    z-index: 6;
+}
+
+@keyframes explode {
+    0% { transform: scale(0.5); opacity: 1; }
+    100% { transform: scale(2); opacity: 0; }
+}
+
+/* Mobile responsive cho game */
+@media (max-width: 600px) {
+    .game-container { height: 80vh; }
+    .meteor { width: 90px; font-size: 0.8em; }
+    .game-controls { grid-template-columns: 1fr; }
+    .game-btn { padding: 10px; font-size: 1em; }
+}

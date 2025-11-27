@@ -468,3 +468,245 @@ function shuffleArray(array) {
     }
     return array;
 }
+
+// ======================================================
+// 5. GAME ENGINE: METEOR DEFENSE (BẢO VỆ TRÁI ĐẤT)
+// ======================================================
+
+let gameInterval;
+let spawnInterval;
+let gameMeteors = []; // Mảng chứa các đối tượng thiên thạch
+let gameScore = 0;
+let gameLives = 3;
+let gameSpeed = 1.0; // Tốc độ rơi cơ bản
+let isGameRunning = false;
+let currentTargetIndex = -1; // Index của thiên thạch thấp nhất (ưu tiên bắn)
+
+// Bắt đầu game
+function startGame() {
+    if(isGameRunning) return;
+    
+    // Reset trạng thái
+    isGameRunning = true;
+    gameScore = 0;
+    gameLives = 3;
+    gameSpeed = 1.5; // Tốc độ khởi đầu
+    gameMeteors = [];
+    document.getElementById('game-area').innerHTML = '';
+    document.getElementById('game-overlay').classList.add('hidden');
+    document.getElementById('game-controls').classList.remove('hidden');
+    updateGameUI();
+
+    // Setup nút bấm (Load 4 công thức ngẫu nhiên lần đầu)
+    refreshGameOptions();
+
+    // Loop chính: Cập nhật vị trí (60fps)
+    gameInterval = setInterval(gameLoop, 16);
+    
+    // Loop sinh quái: Sinh ra mỗi 2-3 giây
+    spawnInterval = setInterval(spawnMeteor, 2500);
+}
+
+function stopGame(isGameOver = false) {
+    isGameRunning = false;
+    clearInterval(gameInterval);
+    clearInterval(spawnInterval);
+    
+    const overlay = document.getElementById('game-overlay');
+    overlay.classList.remove('hidden');
+    document.getElementById('game-controls').classList.add('hidden');
+
+    if (isGameOver) {
+        document.getElementById('overlay-title').textContent = "💀 GAME OVER";
+        document.getElementById('overlay-desc').textContent = `Điểm số của bạn: ${gameScore}`;
+        document.getElementById('btn-start-game').textContent = "Chơi lại 🔄";
+    }
+}
+
+function spawnMeteor() {
+    if(!isGameRunning) return;
+
+    // Chọn ngẫu nhiên 1 công thức từ database
+    const randomFormula = formulas[Math.floor(Math.random() * formulas.length)];
+    
+    // Tạo phần tử DOM
+    const el = document.createElement('div');
+    el.className = 'meteor';
+    el.textContent = randomFormula.desc; // Hiển thị TÊN công thức
+    
+    // Vị trí ngẫu nhiên theo chiều ngang (trừ lề để không bị lẹm)
+    const containerWidth = document.getElementById('game-area').offsetWidth;
+    const randomX = Math.random() * (containerWidth - 120); 
+    
+    el.style.left = randomX + 'px';
+    el.style.top = '-50px';
+
+    document.getElementById('game-area').appendChild(el);
+
+    // Lưu vào mảng quản lý
+    gameMeteors.push({
+        id: randomFormula.id,
+        tex: randomFormula.tex,
+        el: el,
+        y: -50,
+        x: randomX
+    });
+}
+
+function gameLoop() {
+    const containerHeight = document.getElementById('game-container') ? document.getElementById('game-container').offsetHeight : 600;
+    const limit = 600 - 150; // Trừ đi chiều cao khu vực điều khiển
+
+    // Di chuyển thiên thạch
+    gameMeteors.forEach((m, index) => {
+        m.y += gameSpeed;
+        m.el.style.top = m.y + 'px';
+
+        // Kiểm tra chạm đáy (Mất mạng)
+        if (m.y > limit) {
+            handleLifeLost(index);
+        }
+    });
+
+    // Tăng độ khó theo thời gian
+    if (gameScore > 0 && gameScore % 50 === 0) {
+        gameSpeed += 0.005;
+    }
+}
+
+function handleLifeLost(index) {
+    const m = gameMeteors[index];
+    if (m && m.el) m.el.remove();
+    gameMeteors.splice(index, 1);
+    
+    gameLives--;
+    updateGameUI();
+    
+    // Hiệu ứng màn hình đỏ
+    const area = document.getElementById('game-area');
+    area.style.background = 'rgba(220, 38, 38, 0.2)';
+    setTimeout(() => area.style.background = 'transparent', 200);
+
+    if (gameLives <= 0) {
+        stopGame(true);
+    }
+}
+
+// Cập nhật các nút bắn bên dưới
+function refreshGameOptions() {
+    // Tìm thiên thạch thấp nhất (nguy hiểm nhất) để đảm bảo có đáp án đúng cho nó
+    // Sắp xếp theo y giảm dần (y càng lớn càng gần đáy)
+    if (gameMeteors.length === 0) {
+        // Nếu không có thiên thạch, lấy random options
+        renderGameButtons(null);
+        return;
+    }
+
+    // Lấy thiên thạch nguy hiểm nhất (gần đáy nhất)
+    let target = gameMeteors.reduce((prev, current) => (prev.y > current.y) ? prev : current);
+    renderGameButtons(target);
+}
+
+function renderGameButtons(targetMeteor) {
+    const container = document.getElementById('game-controls');
+    container.innerHTML = '';
+
+    let options = [];
+    
+    // 1. Luôn phải có đáp án đúng của thiên thạch mục tiêu (nếu có)
+    if (targetMeteor) {
+        options.push(targetMeteor);
+    } else {
+        // Nếu chưa có thiên thạch, lấy random 1 cái làm "mồi"
+        options.push(formulas[Math.floor(Math.random() * formulas.length)]);
+    }
+
+    // 2. Thêm 3 đáp án sai
+    while (options.length < 4) {
+        const r = formulas[Math.floor(Math.random() * formulas.length)];
+        // Tránh trùng lặp công thức (so sánh tex hoặc id)
+        const exists = options.find(o => o.tex === r.tex);
+        if (!exists) options.push(r);
+    }
+
+    // 3. Xáo trộn vị trí
+    options = shuffleArray(options);
+
+    // 4. Render buttons
+    options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'game-btn';
+        // Hiển thị công thức toán học
+        btn.innerHTML = `\\(${opt.tex}\\)`;
+        btn.onclick = () => fireLaser(opt);
+        container.appendChild(btn);
+    });
+
+    // Render MathJax cho các nút mới
+    MathJax.typesetPromise([container]);
+}
+
+// Xử lý bắn
+function fireLaser(selectedFormula) {
+    if (!isGameRunning) return;
+
+    // Kiểm tra xem công thức vừa chọn có khớp với thiên thạch nào trên màn hình không?
+    // Ưu tiên thiên thạch thấp nhất nếu có nhiều cái giống nhau
+    
+    // Lọc ra các thiên thạch khớp với đáp án người chơi chọn
+    const matches = gameMeteors.filter(m => m.tex === selectedFormula.tex);
+    
+    if (matches.length > 0) {
+        // Bắn trúng! Chọn cái gần đáy nhất để phá hủy
+        const target = matches.reduce((prev, current) => (prev.y > current.y) ? prev : current);
+        
+        createExplosion(target.x, target.y);
+        
+        // Xóa khỏi DOM và mảng
+        target.el.remove();
+        gameMeteors = gameMeteors.filter(m => m !== target);
+        
+        // Cộng điểm
+        gameScore += 10;
+        updateGameUI();
+
+        // Ngay lập tức đổi bộ đáp án mới cho thiên thạch tiếp theo
+        refreshGameOptions();
+    } else {
+        // Bắn trượt (trừ điểm hoặc phạt thời gian)
+        gameScore = Math.max(0, gameScore - 5);
+        updateGameUI();
+        // Rung màn hình phạt
+        const container = document.querySelector('.game-container');
+        container.style.transform = 'translateX(5px)';
+        setTimeout(() => container.style.transform = 'translateX(0)', 50);
+    }
+}
+
+function createExplosion(x, y) {
+    const area = document.getElementById('game-area');
+    const boom = document.createElement('div');
+    boom.className = 'explosion';
+    boom.style.left = (x + 35) + 'px'; // Canh giữa
+    boom.style.top = (y + 20) + 'px';
+    area.appendChild(boom);
+    
+    // Tự xóa sau khi animation xong
+    setTimeout(() => boom.remove(), 300);
+}
+
+function updateGameUI() {
+    document.getElementById('game-score').textContent = gameScore;
+    let hearts = '';
+    for(let i=0; i<gameLives; i++) hearts += '❤️';
+    document.getElementById('game-lives').textContent = hearts;
+}
+
+// --- Cập nhật logic Refresh Button ---
+// Cần gọi refreshGameOptions() liên tục để đảm bảo nút bấm luôn phù hợp với thiên thạch đang rơi?
+// Cách tốt hơn: Chỉ đổi nút khi:
+// 1. Vừa bắn trúng mục tiêu.
+// 2. Hoặc mỗi 3 giây nếu không ai bắn gì (để tránh bị kẹt).
+setInterval(() => {
+    if(isGameRunning) refreshGameOptions();
+}, 3000);

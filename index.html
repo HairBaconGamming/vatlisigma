@@ -21,6 +21,7 @@
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('list')">📖 Ôn tập</button>
             <button class="tab-btn" onclick="switchTab('quiz')">✍️ Kiểm tra</button>
+            <button class="tab-btn" onclick="switchTab('game')">🎮 Game Sinh Tồn</button>
         </div>
 
         <div id="list-view" class="view-section active">
@@ -87,6 +88,26 @@
 
                 <div id="feedback-msg" class="feedback hidden"></div>
                 <div id="correct-answer-display" class="hidden"></div> <button id="btn-next" class="btn-next hidden" onclick="nextQuestion()">Câu tiếp theo ➡</button>
+            </div>
+        </div>
+
+        <div id="game-view" class="view-section">
+            <div class="game-container">
+                <div class="game-header">
+                    <div class="score-box">Điểm: <span id="game-score">0</span></div>
+                    <div class="life-box">Mạng: <span id="game-lives">❤️❤️❤️</span></div>
+                </div>
+                
+                <div id="game-overlay" class="game-overlay">
+                    <h2 id="overlay-title">Sẵn sàng chiến đấu?</h2>
+                    <p id="overlay-desc">Chọn công thức đúng để phá hủy thiên thạch!</p>
+                    <button id="btn-start-game" onclick="startGame()">🚀 BẮT ĐẦU</button>
+                </div>
+
+                <div id="game-area"></div>
+
+                <div id="game-controls" class="game-controls hidden">
+                    </div>
             </div>
         </div>
     </div>
