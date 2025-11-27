@@ -839,7 +839,7 @@ function castSpell() {
     // --- ĐIỀU KIỆN THẮNG SIÊU DỄ ---
     // Chỉ cần 40% nét vẽ của bạn chạm vào vùng mẫu là ĐÚNG.
     // (Cho phép bạn vẽ nguệch ngoạc, nét thừa, hoặc hơi lệch ra ngoài thoải mái)
-    if (precision > 0.40) {
+    if (precision > 0.9) {
         fireLaserAction(inkTargetMeteor.tex, inkTargetMeteor);
         createMagicExplosion();
         clearInkCanvas();
