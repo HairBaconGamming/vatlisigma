@@ -46,6 +46,12 @@
                         <option value="essay">📝 Tự luận (MathLive)</option>
                     </select>
                 </div>
+                <div class="control-group">
+                    <label for="quiz-topic">Phạm vi:</label>
+                    <select id="quiz-topic" onchange="nextQuestion()">
+                        <option value="all">🌐 Tất cả chủ đề</option>
+                        </select>
+                </div>
 
                 <button id="btn-random" onclick="nextQuestion()">🎲 Đổi câu</button>
 
