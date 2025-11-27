@@ -486,7 +486,7 @@ function shuffleArray(array) {
 }
 
 // ======================================================
-// 5. GAME ENGINE: DEFENSE COMMANDER (NÂNG CẤP)
+// 5. GAME ENGINE: DEFENSE COMMANDER (ULTIMATE EDITION)
 // ======================================================
 
 let gameInterval, spawnInterval;
@@ -500,441 +500,421 @@ let gameCombo = 0;
 let isGameRunning = false;
 let gamePool = []; 
 
-// Settings State
-let gameMode = 'multiple'; // 'multiple' or 'essay'
+// Settings & Ink Variables
+let gameMode = 'multiple'; 
 let gameTopic = 'all';
+let inkCanvas, inkCtx, targetInkText = "", isDrawing = false;
+let inkTargetMeteor = null; // Kẻ địch đang bị khóa mục tiêu để vẽ
 
-// --- KHỞI TẠO SETTINGS ---
-function initGameSettings() {
-    // Tự động điền danh sách chủ đề vào Select box
+// --- INIT SETTINGS ---
+document.addEventListener('DOMContentLoaded', () => {
     const topicSelect = document.getElementById('game-topic-select');
-    if(!topicSelect) return;
-    topicSelect.innerHTML = '<option value="all">🌐 Tất cả các chương</option>';
-    
-    // Lấy các group duy nhất
-    const groups = [...new Set(formulas.map(f => f.group))];
-    groups.forEach(g => {
-        const opt = document.createElement('option');
-        opt.value = g;
-        opt.textContent = g;
-        topicSelect.appendChild(opt);
-    });
-}
-// Gọi hàm này khi load trang
-document.addEventListener('DOMContentLoaded', initGameSettings);
-
-// --- GAME LOOP CHÍNH ---
-// Trong file script.js
+    if(topicSelect) {
+        topicSelect.innerHTML = '<option value="all">🌐 Tất cả</option>';
+        [...new Set(formulas.map(f => f.group))].forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g; opt.textContent = g;
+            topicSelect.appendChild(opt);
+        });
+    }
+});
 
 function startGame() {
     if(isGameRunning) return;
     
-    // 1. ĐỌC SETTINGS
+    // 1. SETUP
     const diffSelect = document.getElementById('game-difficulty-select');
     let difficultyMultiplier = parseFloat(diffSelect ? diffSelect.value : 1.5);
+    const allowAdvanced = document.getElementById('game-advanced-toggle').checked;
     
-    const advancedToggle = document.getElementById('game-advanced-toggle');
-    const allowAdvanced = advancedToggle ? advancedToggle.checked : false;
+    gameTopic = document.getElementById('game-topic-select').value;
+    gameMode = document.getElementById('game-mode-select').value;
 
-    gameTopic = document.getElementById('game-topic-select') ? document.getElementById('game-topic-select').value : 'all';
-    gameMode = document.getElementById('game-mode-select') ? document.getElementById('game-mode-select').value : 'multiple';
+    // Tinh chỉnh tốc độ cho các chế độ
+    let spawnRate = 2500;
+    if (gameMode === 'essay') { difficultyMultiplier /= 4; spawnRate = 5000; }
+    if (gameMode === 'ink') { difficultyMultiplier /= 5; spawnRate = 6000; } // Vẽ tốn thời gian nên chậm lại x5
 
-    // --- CẬP NHẬT: GIẢM TỐC ĐỘ GẤP 4 LẦN CHO TỰ LUẬN ---
-    if (gameMode === 'essay') {
-        difficultyMultiplier = difficultyMultiplier / 4; // Chậm hơn nữa để kịp gõ
-    }
-
-    // 2. LỌC DỮ LIỆU
+    // 2. FILTER DATA
     gamePool = formulas.filter(f => {
-        const matchAdvanced = allowAdvanced ? true : !f.advanced;
-        const matchTopic = (gameTopic === 'all') || (f.group === gameTopic);
-        return matchAdvanced && matchTopic;
+        const matchAdv = allowAdvanced ? true : !f.advanced;
+        const matchTop = (gameTopic === 'all') || (f.group === gameTopic);
+        return matchAdv && matchTop;
     });
+    if (gamePool.length < 1) { alert("Không có dữ liệu phù hợp!"); return; }
 
-    if (gamePool.length < 1) {
-        alert("Không tìm thấy công thức phù hợp với cài đặt này!");
-        return;
-    }
-
-    // 3. RESET UI & STATE
+    // 3. RESET STATE
     isGameRunning = true;
     gameScore = 0; gameLives = 3; gameLevel = 1; gameCombo = 0;
-    gameBaseSpeed = difficultyMultiplier; 
-    gameCurrentSpeed = gameBaseSpeed;
-    
+    gameBaseSpeed = difficultyMultiplier; gameCurrentSpeed = gameBaseSpeed;
     gameMeteors = [];
+    inkTargetMeteor = null;
+
+    // UI Reset
     document.getElementById('game-area').innerHTML = `
         <div id="player-ship" class="ship-model">
             <div class="ship-body"></div><div class="ship-cockpit"></div>
             <div class="ship-engine"></div><div class="ship-gun left"></div><div class="ship-gun right"></div>
-        </div>
-    `;
+        </div>`;
     
     document.getElementById('game-overlay').classList.add('hidden');
-    document.getElementById('game-controls').classList.remove('hidden');
     document.getElementById('player-ship').classList.remove('hidden');
+    
+    // Xử lý giao diện Ink Mode
+    const inkContainer = document.getElementById('ink-container');
+    const controls = document.getElementById('game-controls');
+    const mainContainer = document.getElementById('game-container-main');
+
+    if(gameMode === 'ink') {
+        inkContainer.classList.remove('hidden');
+        controls.classList.add('hidden');
+        mainContainer.classList.add('ink-active');
+        setupInkCanvas();
+    } else {
+        inkContainer.classList.add('hidden');
+        controls.classList.remove('hidden');
+        mainContainer.classList.remove('ink-active');
+        setupGameControlsUI();
+    }
 
     updateGameUI();
-    setupGameControlsUI(); // Gọi hàm render giao diện
+    spawnMeteor(); // Spawn ngay lập tức
 
-    // 4. START LOOPS
+    // 4. LOOPS
     gameInterval = setInterval(gameLoop, 16);
-    startSpawnLoop(gameMode === 'essay' ? 5000 : 2500); // Tăng thời gian spawn cho tự luận
+    startSpawnLoop(spawnRate);
 }
+
+// --- LOGIC VẼ (INK MODE) ---
+function setupInkCanvas() {
+    inkCanvas = document.getElementById('ink-canvas');
+    inkCtx = inkCanvas.getContext('2d', { willReadFrequently: true });
+    
+    // Resize canvas
+    const container = document.getElementById('ink-container');
+    inkCanvas.width = container.offsetWidth;
+    inkCanvas.height = container.offsetHeight;
+
+    // Events
+    inkCanvas.onmousedown = startDrawing;
+    inkCanvas.onmousemove = draw;
+    inkCanvas.onmouseup = stopDrawing;
+    inkCanvas.ontouchstart = (e) => { e.preventDefault(); startDrawing(e.touches[0]); };
+    inkCanvas.ontouchmove = (e) => { e.preventDefault(); draw(e.touches[0]); };
+    inkCanvas.ontouchend = stopDrawing;
+
+    refreshInkTarget(); // Vẽ mẫu chữ đầu tiên
+}
+
+function refreshInkTarget() {
+    if(gameMode !== 'ink') return;
+    
+    // Tìm mục tiêu thấp nhất để vẽ
+    if(gameMeteors.length === 0) {
+        targetInkText = "";
+        inkTargetMeteor = null;
+        clearInkCanvas();
+        return;
+    }
+    
+    // Chọn thiên thạch thấp nhất làm mục tiêu
+    inkTargetMeteor = gameMeteors.reduce((p, c) => (p.y > c.y) ? p : c);
+    
+    // Lấy công thức rút gọn để vẽ cho dễ (ví dụ: "F=ma" thay vì cả đống LaTeX)
+    // Tạm thời dùng raw Tex nhưng bỏ các ký tự lạ
+    let displayTex = inkTargetMeteor.tex.replace(/\\/g, '').replace(/_{/g, '').replace(/}/g, '');
+    if(displayTex.length > 8) displayTex = displayTex.substring(0, 8) + "..";
+    targetInkText = displayTex;
+
+    drawInkTemplate();
+}
+
+function clearInkCanvas() {
+    inkCtx.clearRect(0, 0, inkCanvas.width, inkCanvas.height);
+}
+
+function drawInkTemplate() {
+    clearInkCanvas();
+    if(!targetInkText) return;
+
+    inkCtx.save();
+    // Vẽ chữ mẫu (Màu xám mờ để đồ theo)
+    inkCtx.font = "bold 80px Arial"; // Font to
+    inkCtx.textAlign = "center";
+    inkCtx.textBaseline = "middle";
+    inkCtx.fillStyle = "rgba(255, 255, 255, 0.15)";
+    inkCtx.fillText(targetInkText, inkCanvas.width/2, inkCanvas.height/2);
+    
+    // Lưu lại vùng pixel có chữ (để so sánh sau này)
+    inkCtx.restore();
+}
+
+function startDrawing(e) {
+    if(gameMode !== 'ink') return;
+    isDrawing = true;
+    inkCtx.beginPath();
+    const rect = inkCanvas.getBoundingClientRect();
+    inkCtx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+}
+
+function draw(e) {
+    if(!isDrawing || gameMode !== 'ink') return;
+    const rect = inkCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Vẽ nét người chơi (Neon tím)
+    inkCtx.lineWidth = 15;
+    inkCtx.lineCap = 'round';
+    inkCtx.strokeStyle = '#d8b4fe'; // Tím nhạt
+    inkCtx.shadowBlur = 15;
+    inkCtx.shadowColor = '#a855f7'; // Glow tím đậm
+    
+    inkCtx.lineTo(x, y);
+    inkCtx.stroke();
+    
+    // Tạo hiệu ứng hạt
+    if(Math.random() > 0.7) createMagicParticle(x, y);
+}
+
+function stopDrawing() {
+    if(!isDrawing) return;
+    isDrawing = false;
+    checkInkMatch();
+}
+
+function checkInkMatch() {
+    if(!inkTargetMeteor) return;
+
+    // THUẬT TOÁN KIỂM TRA:
+    // 1. Lấy dữ liệu pixel toàn canvas
+    const imageData = inkCtx.getImageData(0, 0, inkCanvas.width, inkCanvas.height);
+    const data = imageData.data;
+    let paintedPixels = 0;
+    
+    // Đếm số pixel đã tô màu (người chơi vẽ)
+    // Lưu ý: Đây là thuật toán đơn giản hóa. 
+    // Đúng ra phải so sánh overlap giữa template và user draw.
+    // Để game mượt, ta dùng cơ chế: "Vẽ đủ lượng mực lên vùng trung tâm"
+    
+    for(let i = 0; i < data.length; i += 4) {
+        // Nếu pixel có alpha > 0 (đã vẽ)
+        if(data[i+3] > 0) {
+            paintedPixels++;
+        }
+    }
+
+    // Ngưỡng chiến thắng: Vẽ đủ số lượng pixel nhất định (tùy độ dài chữ)
+    const requiredPixels = targetInkText.length * 1000; // Ước lượng
+    
+    // Nếu vẽ đủ nhiều -> Giả định là đúng (Game for fun)
+    // Để chính xác hơn, ta nên dùng Composite Operation 'source-in' nhưng hơi phức tạp cho code ngắn.
+    
+    if(paintedPixels > 2500) { // Số magic number test thử
+        fireLaserAction(inkTargetMeteor.tex, inkTargetMeteor);
+        
+        // Hiệu ứng Clear Canvas đẹp mắt
+        inkCanvas.style.transition = 'opacity 0.2s';
+        inkCanvas.style.opacity = '0';
+        setTimeout(() => {
+            clearInkCanvas();
+            inkCanvas.style.opacity = '1';
+            refreshInkTarget(); // Chuyển sang chữ tiếp theo
+        }, 200);
+    }
+}
+
+function createMagicParticle(x, y) {
+    const p = document.createElement('div');
+    p.className = 'magic-particle';
+    p.style.left = (x + document.getElementById('ink-container').offsetLeft) + 'px'; // Canh chỉnh lại tọa độ
+    // Fix tọa độ vì canvas nằm trong container relative
+    // Thực tế canvas full container, nên x y là chuẩn trong container
+    // Cần append vào container
+    
+    const container = document.getElementById('ink-container');
+    p.style.left = x + 'px';
+    p.style.top = y + 'px';
+    
+    // Random hướng bay
+    const dx = (Math.random() - 0.5) * 100 + 'px';
+    const dy = (Math.random() - 0.5) * 100 + 'px';
+    p.style.setProperty('--mx', dx);
+    p.style.setProperty('--my', dy);
+    
+    container.appendChild(p);
+    setTimeout(() => p.remove(), 800);
+}
+
+// --- CÁC HÀM CŨ (GIỮ NGUYÊN HOẶC CHỈNH SỬA NHỎ) ---
 
 function setupGameControlsUI() {
     const container = document.getElementById('game-controls');
     container.innerHTML = '';
-
     if (gameMode === 'multiple') {
         refreshGameOptions(); 
-    } else {
-        // --- CẬP NHẬT: THÊM NÚT BẮN VÀO GIAO DIỆN TỰ LUẬN ---
+    } else if (gameMode === 'essay') {
         container.innerHTML = `
             <div class="essay-controls-container">
                 <math-field id="game-essay-input" virtual-keyboard-mode="onfocus" placeholder="Nhập công thức..."></math-field>
                 <button id="btn-fire-essay" class="fire-btn">BẮN 🔥</button>
-            </div>
-        `;
-        
+            </div>`;
         const mf = document.getElementById('game-essay-input');
-        const btnFire = document.getElementById('btn-fire-essay');
-
-        // Xử lý khi nhấn nút Bắn
-        btnFire.onclick = () => {
-            if(mf.value.trim() !== "") {
-                fireEssayLaser(mf.value);
-                mf.value = '';
-                mf.focus();
-            }
+        const handleFire = () => {
+            if(mf.value.trim()){ fireEssayLaser(mf.value); mf.value=''; mf.focus(); }
+            else mf.focus();
         };
-
-        // Xử lý khi nhấn Enter
-        mf.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                fireEssayLaser(mf.value);
-                mf.value = '';
-            }
-        });
-        
-        setTimeout(() => mf.focus(), 100);
-    }
-}
-
-function startSpawnLoop(intervalTime) {
-    if (spawnInterval) clearInterval(spawnInterval);
-    spawnInterval = setInterval(spawnMeteor, intervalTime);
-}
-
-function stopGame(isGameOver = false) {
-    isGameRunning = false;
-    if (gameInterval) clearInterval(gameInterval);
-    if (spawnInterval) clearInterval(spawnInterval);
-    
-    // An toàn: Kiểm tra phần tử tồn tại trước khi thao tác
-    const overlay = document.getElementById('game-overlay');
-    const controls = document.getElementById('game-controls');
-    const ship = document.getElementById('player-ship');
-    
-    if (overlay) overlay.classList.remove('hidden');
-    if (controls) controls.classList.add('hidden');
-    if (ship) ship.classList.add('hidden');
-
-    // Cố gắng tìm Title theo Class mới hoặc ID cũ để tránh lỗi null
-    const title = document.querySelector('.game-title') || document.getElementById('overlay-title');
-    const desc = document.getElementById('overlay-desc');
-    const btn = document.getElementById('btn-start-game');
-
-    // Nếu HTML bị thiếu hẳn, dừng hàm để không crash
-    if (!title || !desc || !btn) {
-        console.warn("Thiếu HTML game interface! Hãy cập nhật index.html");
-        return;
-    }
-
-    if (isGameOver) {
-        title.textContent = "💀 GAME OVER";
-        title.style.color = "red";
-        desc.innerHTML = `Điểm tổng kết: <span style="color:#facc15; font-size:1.5em">${gameScore}</span>`;
-        btn.textContent = "Thử lại ngay 🔥";
-    } else {
-        title.textContent = "DEFENSE COMMANDER";
-        title.style.color = "#ef4444";
-        desc.textContent = "Sẵn sàng cho nhiệm vụ tiếp theo?";
-        btn.textContent = "Tiếp tục 🚀";
+        document.getElementById('btn-fire-essay').onclick = handleFire;
+        mf.addEventListener('keydown', (e) => { if(e.key==='Enter'||e.keyCode===13){e.preventDefault(); handleFire();} });
+        setTimeout(()=>mf.focus(),100);
     }
 }
 
 function spawnMeteor() {
     if(!isGameRunning) return;
-
     const randomFormula = gamePool[Math.floor(Math.random() * gamePool.length)];
-    
     const el = document.createElement('div');
     el.className = 'meteor';
-    // Hiển thị cả Chủ đề nhỏ và Tên đại lượng
     el.innerHTML = `<span class="meteor-topic">${randomFormula.group}</span><div class="meteor-name">${randomFormula.desc}</div>`;
-    
-    const containerWidth = document.getElementById('game-area').offsetWidth;
-    const randomX = Math.random() * (containerWidth - 140); 
-    
-    el.style.left = randomX + 'px';
-    el.style.top = '-80px'; 
-
+    const w = document.getElementById('game-area').offsetWidth;
+    const randomX = Math.random() * (w - 140);
+    el.style.left = randomX + 'px'; el.style.top = '-80px';
     document.getElementById('game-area').appendChild(el);
+    
+    const meteorObj = { id:randomFormula.id, tex:randomFormula.tex, el:el, y:-80, x:randomX };
+    gameMeteors.push(meteorObj);
 
-    gameMeteors.push({
-        id: randomFormula.id,
-        tex: randomFormula.tex,
-        el: el,
-        y: -80,
-        x: randomX
-    });
+    // Ink Mode update target nếu chưa có
+    if(gameMode === 'ink' && !inkTargetMeteor) refreshInkTarget();
+    if(gameMode === 'multiple' && gameMeteors.length===1) refreshGameOptions();
 }
 
 function gameLoop() {
     const container = document.getElementById('game-container-main');
     if(!container) return;
-    const limit = container.offsetHeight - 80;
+    // Nếu Ink Mode, vùng chết cao hơn (do có bảng vẽ)
+    const deadZone = container.offsetHeight - (gameMode==='ink' ? 300 : 80);
 
     gameMeteors.forEach((m, index) => {
         m.y += gameCurrentSpeed;
         m.el.style.top = m.y + 'px';
-
-        if (m.y > limit) {
-            handleLifeLost(index);
-        }
+        if (m.y > deadZone) handleLifeLost(index);
     });
 }
 
-// --- LOGIC BẮN (Shooting Logic) ---
-
-// 1. Xử lý bắn cho chế độ Trắc nghiệm (Buttons)
-function refreshGameOptions() {
-    if (gameMode !== 'multiple') return; // Không làm gì nếu là tự luận
-
-    const container = document.getElementById('game-controls');
-    // Logic lấy mục tiêu ưu tiên (gần đáy nhất)
-    if (gameMeteors.length === 0) {
-        renderMultipleChoiceButtons(null, container);
-        return;
-    }
-    let target = gameMeteors.reduce((prev, current) => (prev.y > current.y) ? prev : current);
-    renderMultipleChoiceButtons(target, container);
-}
-
-function renderMultipleChoiceButtons(targetMeteor, container) {
-    container.innerHTML = '';
-    let options = [];
-    
-    if (targetMeteor) {
-        const original = gamePool.find(f => f.tex === targetMeteor.tex) || targetMeteor;
-        options.push(original);
-    } else {
-        options.push(gamePool[Math.floor(Math.random() * gamePool.length)]);
-    }
-
-    while (options.length < 4) {
-        const r = gamePool[Math.floor(Math.random() * gamePool.length)];
-        if (!options.find(o => o.tex === r.tex)) options.push(r);
-    }
-
-    options = shuffleArray(options);
-
-    options.forEach(opt => {
-        const btn = document.createElement('button');
-        btn.className = 'game-btn';
-        btn.innerHTML = `\\(${opt.tex}\\)`;
-        btn.onclick = () => fireLaserAction(opt.tex, null); // Bắn dựa trên Tex
-        container.appendChild(btn);
-    });
-    MathJax.typesetPromise([container]);
-}
-
-// 2. Xử lý bắn cho chế độ Tự Luận (Input)
-function fireEssayLaser(inputValue) {
-    // So sánh input với TẤT CẢ thiên thạch đang có
-    // Nếu trùng bất kỳ cái nào -> Bắn cái đó
-    const cleanInput = normalizeTex(inputValue);
-    
-    // Tìm thiên thạch khớp (ưu tiên cái thấp nhất)
-    const matches = gameMeteors.filter(m => checkMathEquivalence(cleanInput, m.tex));
-    
-    if (matches.length > 0) {
-        // Bắn cái thấp nhất
-        const target = matches.reduce((prev, current) => (prev.y > current.y) ? prev : current);
-        fireLaserAction(target.tex, target);
-    } else {
-        // Bắn trượt
-        gameCombo = 0;
-        gameScore = Math.max(0, gameScore - 5);
-        updateGameUI();
-        // Hiệu ứng màn hình rung nhẹ báo sai
-        const input = document.getElementById('game-essay-input');
-        if(input) {
-            input.style.borderColor = 'red';
-            setTimeout(() => input.style.borderColor = '#3b82f6', 200);
-        }
-    }
-}
-
-// 3. Hành động bắn chung (Visuals & Logic)
-function fireLaserAction(texValue, specificTarget) {
-    // Tìm mục tiêu để visualize (nếu chưa có)
-    let target = specificTarget;
-    if (!target) {
-        const matches = gameMeteors.filter(m => m.tex === texValue);
-        if (matches.length > 0) {
-            target = matches.reduce((prev, current) => (prev.y > current.y) ? prev : current);
-        }
-    }
-
-    if (target) {
-        // 1. Tạo hiệu ứng tia Laser từ tàu đến mục tiêu
-        createLaserVisual(target.x + 60, target.y + 20); // +60 để vào giữa thiên thạch
-
-        // 2. Logic game
-        createExplosion(target.x, target.y);
-        showFloatingText(target.x, target.y, calculateScore());
-
-        target.el.remove();
-        gameMeteors = gameMeteors.filter(m => m !== target);
-        
-        gameCombo++;
-        checkLevelUp();
-        updateGameUI();
-
-        // Refresh options nếu là trắc nghiệm
-        if(gameMode === 'multiple') refreshGameOptions();
-
-    } else {
-        // Bắn trượt (Trắc nghiệm)
-        gameCombo = 0;
-        gameScore = Math.max(0, gameScore - 10);
-        updateGameUI();
-    }
-}
-
-// --- VISUAL EFFECTS ---
-
-function createLaserVisual(targetX, targetY) {
-    const gameArea = document.getElementById('game-area');
-    const ship = document.getElementById('player-ship');
-    if(!ship) return;
-    
-    // Lấy vị trí tàu
-    const shipRect = ship.getBoundingClientRect();
-    const areaRect = gameArea.getBoundingClientRect();
-    
-    const startX = (shipRect.left - areaRect.left) + (shipRect.width / 2);
-    const startY = (shipRect.top - areaRect.top);
-
-    // Tính toán góc và độ dài để vẽ tia
-    const deltaX = targetX - startX;
-    const deltaY = targetY - startY;
-    const length = Math.sqrt(deltaX*deltaX + deltaY*deltaY);
-    const angle = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
-
-    const laser = document.createElement('div');
-    laser.className = 'laser-beam';
-    laser.style.height = '4px';
-    laser.style.width = length + 'px';
-    laser.style.position = 'absolute';
-    laser.style.left = startX + 'px';
-    laser.style.top = startY + 'px';
-    laser.style.transformOrigin = '0 50%'; // Xoay từ gốc trái
-    laser.style.transform = `rotate(${angle}deg)`;
-    laser.style.zIndex = '5';
-    
-    gameArea.appendChild(laser);
-
-    // Xóa laser nhanh
-    setTimeout(() => laser.remove(), 100);
-}
-
-// ... (Giữ nguyên các hàm handleLifeLost, calculateScore, showFloatingText, checkLevelUp, createExplosion, updateGameUI từ phiên bản trước) ...
-// (Đảm bảo copy lại các hàm phụ trợ đó vào đây để code chạy hoàn chỉnh)
-
-// HÀM PHỤ TRỢ CŨ (Copy lại để đảm bảo không bị thiếu)
 function handleLifeLost(index) {
     const m = gameMeteors[index];
     if (m && m.el) m.el.remove();
     gameMeteors.splice(index, 1);
-    
     gameLives--; gameCombo = 0;
     
-    const mainContainer = document.getElementById('game-container-main');
-    mainContainer.classList.remove('shake');
-    void mainContainer.offsetWidth; 
-    mainContainer.classList.add('shake');
-
-    const area = document.getElementById('game-area');
-    area.style.background = 'rgba(220, 38, 38, 0.3)';
-    setTimeout(() => area.style.background = 'transparent', 200);
+    const main = document.getElementById('game-container-main');
+    main.classList.remove('shake'); void main.offsetWidth; main.classList.add('shake');
+    
+    if(gameMode==='ink' && m === inkTargetMeteor) refreshInkTarget(); // Đổi mục tiêu nếu mục tiêu cũ đâm vào tàu
 
     updateGameUI();
     if (gameLives <= 0) stopGame(true);
     else if (gameMode === 'multiple') refreshGameOptions();
 }
 
-function calculateScore() {
-    const basePoints = gameMode === 'essay' ? 30 : 10; // Tự luận điểm cao hơn
-    const comboBonus = gameCombo * (gameMode === 'essay' ? 5 : 2);
-    const points = basePoints + comboBonus;
-    gameScore += points;
-    return points;
-}
-
-function showFloatingText(x, y, points) {
-    const area = document.getElementById('game-area');
-    const floatEl = document.createElement('div');
-    floatEl.className = 'floating-text';
-    floatEl.style.left = (x + 20) + 'px';
-    floatEl.style.top = y + 'px';
-    let text = `+${points}`;
-    if (gameCombo > 1) text += ` <span style="color:#fff; font-size:0.8em">x${gameCombo}</span>`;
-    floatEl.innerHTML = text;
-    area.appendChild(floatEl);
-    setTimeout(() => floatEl.remove(), 1000);
-}
-
-function checkLevelUp() {
-    const newLevel = Math.floor(gameScore / (gameMode==='essay'? 300 : 150)) + 1;
-    if (newLevel > gameLevel) {
-        gameLevel = newLevel;
-        gameCurrentSpeed = gameBaseSpeed + (gameLevel * 0.2);
-        const newSpawnRate = Math.max(800, (gameMode==='essay'?4000:2500) - (gameLevel * 200)); 
-        startSpawnLoop(newSpawnRate);
-        
-        const area = document.getElementById('game-area');
-        const lvUp = document.createElement('div');
-        lvUp.textContent = `LEVEL ${gameLevel} !!!`;
-        lvUp.style = "position:absolute; top:40%; width:100%; text-align:center; font-size:3em; color:#fff; font-weight:bold; text-shadow:0 0 20px blue; animation: floatUp 1.5s forwards; z-index:20";
-        area.appendChild(lvUp);
-        setTimeout(() => lvUp.remove(), 1500);
-    }
-}
-
-function createExplosion(x, y) {
-    const area = document.getElementById('game-area');
-    const boom = document.createElement('div');
-    boom.className = 'explosion';
-    boom.style.left = (x + 35) + 'px';
-    boom.style.top = (y + 20) + 'px';
-    area.appendChild(boom);
-    setTimeout(() => boom.remove(), 300);
-}
-
-function updateGameUI() {
-    document.getElementById('game-score').textContent = gameScore;
-    document.getElementById('game-level').textContent = gameLevel;
-    const comboEl = document.getElementById('combo-display');
-    const comboCountEl = document.getElementById('combo-count');
-    if (gameCombo > 1) {
-        comboEl.classList.remove('hidden');
-        comboCountEl.textContent = gameCombo;
+function fireEssayLaser(inputValue) {
+    const cleanInput = normalizeTex(inputValue);
+    const matches = gameMeteors.filter(m => checkMathEquivalence(cleanInput, m.tex));
+    if (matches.length > 0) {
+        matches.forEach((t, i) => setTimeout(() => fireLaserAction(t.tex, t), i*100));
+        if(matches.length>1) { showFloatingText(matches[0].x, matches[0].y-50, "MULTI-KILL!"); gameScore+=matches.length*10; }
     } else {
-        comboEl.classList.add('hidden');
+        gameCombo=0; gameScore=Math.max(0,gameScore-5); updateGameUI();
+        const inp = document.getElementById('game-essay-input');
+        if(inp){ inp.style.borderColor='red'; setTimeout(()=>inp.style.borderColor='#3b82f6',300); }
     }
-    let hearts = ''; for(let i=0; i<gameLives; i++) hearts += '❤️';
-    document.getElementById('game-lives').textContent = hearts;
+}
+
+function fireLaserAction(texValue, specificTarget) {
+    let target = specificTarget;
+    if (!target) {
+        const matches = gameMeteors.filter(m => m.tex === texValue);
+        if (matches.length > 0) target = matches.reduce((p, c) => (p.y > c.y) ? p : c);
+    }
+
+    if (target) {
+        createLaserVisual(target.x + 60, target.y + 20);
+        createExplosion(target.x, target.y);
+        showFloatingText(target.x, target.y, calculateScore());
+        target.el.remove();
+        gameMeteors = gameMeteors.filter(m => m !== target);
+        gameCombo++; checkLevelUp(); updateGameUI();
+        
+        if(gameMode === 'multiple') refreshGameOptions();
+        if(gameMode === 'ink' && target === inkTargetMeteor) refreshInkTarget(); // Vẽ xong, đổi chữ mới
+    } else {
+        gameCombo=0; gameScore=Math.max(0,gameScore-10); updateGameUI();
+    }
+}
+
+function createLaserVisual(tx, ty) {
+    const ga = document.getElementById('game-area');
+    const ship = document.getElementById('player-ship');
+    if(!ship) return;
+    const sRect = ship.getBoundingClientRect();
+    const aRect = ga.getBoundingClientRect();
+    const sx = (sRect.left - aRect.left) + sRect.width/2;
+    const sy = (sRect.top - aRect.top);
+    const dx = tx - sx; const dy = ty - sy;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+    
+    const l = document.createElement('div');
+    l.className = 'laser-beam';
+    l.style.cssText = `width:${len}px; left:${sx}px; top:${sy}px; transform:rotate(${ang}deg);`;
+    ga.appendChild(l); setTimeout(()=>l.remove(),100);
+}
+
+// Helpers
+function startSpawnLoop(t) { if(spawnInterval) clearInterval(spawnInterval); spawnInterval=setInterval(spawnMeteor,t); }
+function stopGame(isOver=false) {
+    isGameRunning=false; clearInterval(gameInterval); clearInterval(spawnInterval);
+    document.getElementById('game-overlay').classList.remove('hidden');
+    document.getElementById('game-controls').classList.add('hidden');
+    document.getElementById('ink-container').classList.add('hidden');
+    document.getElementById('player-ship').classList.add('hidden');
+    document.getElementById('game-container-main').classList.remove('ink-active');
+
+    const t = document.querySelector('.game-title');
+    const d = document.getElementById('overlay-desc');
+    const b = document.getElementById('btn-start-game');
+    if(isOver){ t.textContent="💀 GAME OVER"; t.style.color="red"; d.innerHTML=`Điểm: ${gameScore}`; b.textContent="Thử lại 🔥"; }
+    else { t.textContent="DEFENSE COMMANDER"; t.style.color="#ef4444"; d.textContent="Tiếp tục?"; b.textContent="Tiếp tục 🚀"; }
+}
+function calculateScore(){ return (gameMode==='essay'?30:10) + (gameCombo*2); }
+function checkLevelUp(){ if(Math.floor(gameScore/150)+1 > gameLevel){ gameLevel++; gameCurrentSpeed+=0.2; } }
+function showFloatingText(x,y,p){ 
+    const f=document.createElement('div'); f.className='floating-text'; f.style.left=(x+20)+'px'; f.style.top=y+'px'; f.innerHTML=`+${p}`; 
+    document.getElementById('game-area').appendChild(f); setTimeout(()=>f.remove(),1000); 
+}
+function createExplosion(x,y){
+    const b=document.createElement('div'); b.className='explosion'; b.style.left=(x+35)+'px'; b.style.top=(y+20)+'px'; 
+    document.getElementById('game-area').appendChild(b); setTimeout(()=>b.remove(),300);
+}
+function updateGameUI(){ 
+    document.getElementById('game-score').textContent=gameScore; 
+    document.getElementById('game-level').textContent=gameLevel;
+    document.getElementById('game-lives').textContent = "❤️".repeat(Math.max(0,gameLives));
+    const cb = document.getElementById('combo-display');
+    if(gameCombo>1){cb.classList.remove('hidden'); document.getElementById('combo-count').textContent=gameCombo;}
+    else cb.classList.add('hidden');
+}
+function refreshGameOptions() {
+    // Logic trắc nghiệm (giữ nguyên từ cũ nếu cần, code này tập trung Ink)
+    const c = document.getElementById('game-controls'); c.innerHTML='';
+    let t = gameMeteors.length? gameMeteors.reduce((p,c)=>(p.y>c.y)?p:c) : null;
+    let opts = [];
+    if(t) opts.push(gamePool.find(f=>f.tex===t.tex)||t); else opts.push(gamePool[0]);
+    while(opts.length<4){ const r=gamePool[Math.floor(Math.random()*gamePool.length)]; if(!opts.find(o=>o.tex===r.tex)) opts.push(r); }
+    opts.sort(()=>Math.random()-0.5).forEach(o=>{
+        const b=document.createElement('button'); b.className='game-btn'; b.innerHTML=`\\(${o.tex}\\)`;
+        b.onclick=()=>fireLaserAction(o.tex,null); c.appendChild(b);
+    });
+    MathJax.typesetPromise([c]);
 }

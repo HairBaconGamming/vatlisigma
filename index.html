@@ -93,8 +93,7 @@
 
         <div id="game-view" class="view-section">
             <div class="game-container" id="game-container-main">
-                <div class="stars"></div>
-                <div class="stars2"></div>
+                <div class="stars"></div><div class="stars2"></div>
 
                 <div class="game-header">
                     <div class="header-left">
@@ -107,59 +106,54 @@
                 
                 <div id="game-overlay" class="game-overlay">
                     <h1 class="game-title">DEFENSE COMMANDER</h1>
-                    
                     <div class="game-settings-panel">
                         <div class="setting-group">
-                            <label>📡 Mục tiêu đánh chặn (Chủ đề):</label>
-                            <select id="game-topic-select" class="full-width-select">
-                                <option value="all">🌐 Tất cả các chương</option>
-                            </select>
+                            <label>📡 Mục tiêu đánh chặn:</label>
+                            <select id="game-topic-select" class="full-width-select"><option value="all">🌐 Tất cả</option></select>
                         </div>
-
                         <div class="setting-row-group">
                             <div class="setting-col">
                                 <label>⚡ Tốc độ:</label>
                                 <select id="game-difficulty-select">
                                     <option value="1">Dễ</option>
                                     <option value="1.5" selected>Thường</option>
-                                    <option value="2.5">Khó</option>
-                                    <option value="4">Siêu cấp</option>
+                                    <option value="3">Khó</option>
                                 </select>
                             </div>
-
                             <div class="setting-col">
-                                <label>🔫 Chế độ bắn:</label>
+                                <label>🔫 Chế độ:</label>
                                 <select id="game-mode-select">
                                     <option value="multiple">Trắc nghiệm</option>
-                                    <option value="essay">Tự luận</option>
+                                    <option value="essay">Tự luận (Gõ phím)</option>
+                                    <option value="ink">✍️ Pháp Sư (Vẽ hình)</option>
                                 </select>
                             </div>
                         </div>
-                        
                         <div class="setting-row">
                             <label class="toggle-switch">
                                 <input type="checkbox" id="game-advanced-toggle">
                                 <span class="slider"></span>
-                                <span class="label-text" style="color:#bfdbfe">Bao gồm kiến thức Nâng cao</span>
+                                <span class="label-text" style="color:#bfdbfe">Nâng cao</span>
                             </label>
                         </div>
                     </div>
-
-                    <p id="overlay-desc">Sẵn sàng cho nhiệm vụ tiếp theo?</p>
-                    <button id="btn-start-game" onclick="startGame()">🚀 KHỞI ĐỘNG CHIẾN HẠM</button>
+                    <button id="btn-start-game" onclick="startGame()">🚀 KHỞI ĐỘNG</button>
                 </div>
 
                 <div id="game-area">
                     <div id="player-ship" class="ship-model hidden">
-                        <div class="ship-body"></div>
-                        <div class="ship-cockpit"></div>
-                        <div class="ship-engine"></div>
-                        <div class="ship-gun left"></div>
-                        <div class="ship-gun right"></div>
+                        <div class="ship-body"></div><div class="ship-cockpit"></div>
+                        <div class="ship-engine"></div><div class="ship-gun left"></div><div class="ship-gun right"></div>
                     </div>
                 </div>
 
                 <div id="game-controls" class="game-controls hidden"></div>
+
+                <div id="ink-container" class="hidden">
+                    <div class="magic-circle-bg"></div>
+                    <canvas id="ink-canvas"></canvas>
+                    <div class="ink-instruction">Vẽ theo nét chữ để niệm chú!</div>
+                </div>
             </div>
         </div>
     </div>
