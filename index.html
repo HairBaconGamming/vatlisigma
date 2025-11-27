@@ -92,22 +92,48 @@
         </div>
 
         <div id="game-view" class="view-section">
-            <div class="game-container">
+            <div class="game-container" id="game-container-main">
                 <div class="game-header">
-                    <div class="score-box">Điểm: <span id="game-score">0</span></div>
-                    <div class="life-box">Mạng: <span id="game-lives">❤️❤️❤️</span></div>
+                    <div class="header-left">
+                        <div class="score-box">⭐ <span id="game-score">0</span></div>
+                        <div class="level-box">LV. <span id="game-level">1</span></div>
+                    </div>
+                    
+                    <div id="combo-display" class="combo-box hidden">COMBO x<span id="combo-count">0</span> 🔥</div>
+
+                    <div class="life-box" id="game-lives">❤️❤️❤️</div>
                 </div>
                 
                 <div id="game-overlay" class="game-overlay">
-                    <h2 id="overlay-title">Sẵn sàng chiến đấu?</h2>
-                    <p id="overlay-desc">Chọn công thức đúng để phá hủy thiên thạch!</p>
-                    <button id="btn-start-game" onclick="startGame()">🚀 BẮT ĐẦU</button>
+                    <h1 class="game-title">METEOR DEFENSE</h1>
+                    
+                    <div class="game-settings-panel">
+                        <div class="setting-row">
+                            <label>Độ khó:</label>
+                            <select id="game-difficulty-select">
+                                <option value="1">Dễ (Tốc độ chậm)</option>
+                                <option value="1.5" selected>Thường (Vừa phải)</option>
+                                <option value="2.2">Khó (Siêu tốc)</option>
+                                <option value="3">Địa ngục ☠️</option>
+                            </select>
+                        </div>
+                        
+                        <div class="setting-row">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="game-advanced-toggle">
+                                <span class="slider"></span>
+                                <span class="label-text" style="color:white">Bao gồm công thức Nâng cao</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <p id="overlay-desc">Bắn hạ thiên thạch bằng kiến thức Vật Lý!</p>
+                    <button id="btn-start-game" onclick="startGame()">🚀 KHỞI ĐỘNG</button>
                 </div>
 
                 <div id="game-area"></div>
 
-                <div id="game-controls" class="game-controls hidden">
-                    </div>
+                <div id="game-controls" class="game-controls hidden"></div>
             </div>
         </div>
     </div>

@@ -441,3 +441,92 @@ math-field:focus-within {
     .game-controls { grid-template-columns: 1fr; }
     .game-btn { padding: 10px; font-size: 1em; }
 }
+
+/* --- GAME UPDATE: SETTINGS & VISUALS --- */
+
+.game-title {
+    font-size: 2.5em;
+    color: #ef4444;
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+    margin-bottom: 20px;
+    letter-spacing: 2px;
+}
+
+/* Bảng cài đặt */
+.game-settings-panel {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 20px;
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.2);
+    margin-bottom: 20px;
+    width: 80%;
+    max-width: 400px;
+}
+
+.setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    color: white;
+    font-weight: bold;
+}
+
+.setting-row select {
+    background: #1e293b;
+    color: white;
+    border: 1px solid #475569;
+    padding: 5px 10px;
+    border-radius: 5px;
+}
+
+/* Combo Display */
+.combo-box {
+    font-size: 1.5em;
+    font-weight: 900;
+    color: #fbbf24; /* Vàng cam */
+    text-shadow: 0 0 10px #f59e0b;
+    animation: pulse 0.5s infinite alternate;
+}
+
+@keyframes pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
+
+/* Level Box */
+.level-box { margin-left: 15px; color: #38bdf8; font-weight: bold; }
+.header-left { display: flex; align-items: center; }
+
+/* HIỆU ỨNG RUNG MÀN HÌNH (SCREEN SHAKE) */
+.shake {
+    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes shake {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+/* CHỮ ĐIỂM BAY LÊN (Floating Text) */
+.floating-text {
+    position: absolute;
+    color: #facc15;
+    font-weight: bold;
+    font-size: 1.2em;
+    pointer-events: none;
+    animation: floatUp 1s ease-out forwards;
+    z-index: 100;
+    text-shadow: 1px 1px 2px black;
+}
+
+@keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-50px) scale(1.2); }
+}
+
+/* Nâng cấp hiệu ứng Nổ */
+.explosion {
+    background: radial-gradient(circle, #fef08a 0%, #ef4444 100%);
+    box-shadow: 0 0 20px #ef4444;
+}

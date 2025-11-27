@@ -486,41 +486,65 @@ function shuffleArray(array) {
 }
 
 // ======================================================
-// 5. GAME ENGINE: METEOR DEFENSE (BẢO VỆ TRÁI ĐẤT)
+// 5. GAME ENGINE: METEOR DEFENSE (BẢO VỆ TRÁI ĐẤT) - UPGRADED
 // ======================================================
 
-let gameInterval;
-let spawnInterval;
-let gameMeteors = []; // Mảng chứa các đối tượng thiên thạch
+let gameInterval, spawnInterval, difficultyInterval;
+let gameMeteors = []; 
 let gameScore = 0;
 let gameLives = 3;
-let gameSpeed = 1.0; // Tốc độ rơi cơ bản
+let gameBaseSpeed = 1.0; 
+let gameCurrentSpeed = 1.0;
+let gameLevel = 1;
+let gameCombo = 0; // Biến đếm Combo
 let isGameRunning = false;
-let currentTargetIndex = -1; // Index của thiên thạch thấp nhất (ưu tiên bắn)
+let gamePool = []; // Danh sách công thức được lọc để chơi
 
 // Bắt đầu game
 function startGame() {
     if(isGameRunning) return;
     
-    // Reset trạng thái
+    // 1. LẤY CÀI ĐẶT TỪ GIAO DIỆN
+    const diffSelect = document.getElementById('game-difficulty-select');
+    const difficultyMultiplier = parseFloat(diffSelect ? diffSelect.value : 1.5);
+    
+    const advancedToggle = document.getElementById('game-advanced-toggle');
+    const allowAdvanced = advancedToggle ? advancedToggle.checked : false;
+
+    // 2. LỌC DANH SÁCH CÔNG THỨC
+    // Nếu chọn Nâng cao: lấy tất cả. Nếu không: chỉ lấy cơ bản.
+    gamePool = formulas.filter(f => allowAdvanced ? true : !f.advanced);
+    // Fallback: Nếu lọc xong mà rỗng (hiếm gặp), lấy hết
+    if (gamePool.length < 4) gamePool = formulas; 
+
+    // 3. KHỞI TẠO TRẠNG THÁI
     isGameRunning = true;
     gameScore = 0;
     gameLives = 3;
-    gameSpeed = 1.5; // Tốc độ khởi đầu
+    gameLevel = 1;
+    gameCombo = 0;
+    gameBaseSpeed = difficultyMultiplier; // Tốc độ nền tảng
+    gameCurrentSpeed = gameBaseSpeed;
+    
     gameMeteors = [];
     document.getElementById('game-area').innerHTML = '';
     document.getElementById('game-overlay').classList.add('hidden');
     document.getElementById('game-controls').classList.remove('hidden');
-    updateGameUI();
+    document.getElementById('game-container-main').classList.remove('shake'); // Xóa hiệu ứng rung cũ nếu có
 
-    // Setup nút bấm (Load 4 công thức ngẫu nhiên lần đầu)
+    updateGameUI();
     refreshGameOptions();
 
-    // Loop chính: Cập nhật vị trí (60fps)
-    gameInterval = setInterval(gameLoop, 16);
+    // 4. CÁC VÒNG LẶP (LOOPS)
+    gameInterval = setInterval(gameLoop, 16); // 60fps movement
     
-    // Loop sinh quái: Sinh ra mỗi 2-3 giây
-    spawnInterval = setInterval(spawnMeteor, 2500);
+    // Tốc độ sinh quái khởi điểm: 2.5s
+    startSpawnLoop(2500); 
+}
+
+function startSpawnLoop(intervalTime) {
+    if (spawnInterval) clearInterval(spawnInterval);
+    spawnInterval = setInterval(spawnMeteor, intervalTime);
 }
 
 function stopGame(isGameOver = false) {
@@ -533,61 +557,58 @@ function stopGame(isGameOver = false) {
     document.getElementById('game-controls').classList.add('hidden');
 
     if (isGameOver) {
-        document.getElementById('overlay-title').textContent = "💀 GAME OVER";
-        document.getElementById('overlay-desc').textContent = `Điểm số của bạn: ${gameScore}`;
-        document.getElementById('btn-start-game').textContent = "Chơi lại 🔄";
+        document.querySelector('.game-title').textContent = "💀 GAME OVER";
+        document.getElementById('overlay-desc').innerHTML = 
+            `Điểm số: <span style="color:#facc15; font-size:1.2em">${gameScore}</span><br>Level: ${gameLevel}`;
+        document.getElementById('btn-start-game').textContent = "Chơi lại ngay 🔥";
+    } else {
+        document.querySelector('.game-title').textContent = "METEOR DEFENSE";
+        document.getElementById('overlay-desc').textContent = "Bắn hạ thiên thạch bằng kiến thức Vật Lý!";
+        document.getElementById('btn-start-game').textContent = "Tiếp tục 🚀";
     }
 }
 
 function spawnMeteor() {
     if(!isGameRunning) return;
 
-    // Chọn ngẫu nhiên 1 công thức từ database
-    const randomFormula = formulas[Math.floor(Math.random() * formulas.length)];
+    // Chọn ngẫu nhiên từ gamePool (đã lọc setting)
+    const randomFormula = gamePool[Math.floor(Math.random() * gamePool.length)];
     
-    // Tạo phần tử DOM
     const el = document.createElement('div');
     el.className = 'meteor';
-    el.textContent = randomFormula.desc; // Hiển thị TÊN công thức
+    el.textContent = randomFormula.desc; 
     
-    // Vị trí ngẫu nhiên theo chiều ngang (trừ lề để không bị lẹm)
     const containerWidth = document.getElementById('game-area').offsetWidth;
     const randomX = Math.random() * (containerWidth - 120); 
     
     el.style.left = randomX + 'px';
-    el.style.top = '-50px';
+    el.style.top = '-60px'; // Bắt đầu cao hơn một chút
 
     document.getElementById('game-area').appendChild(el);
 
-    // Lưu vào mảng quản lý
     gameMeteors.push({
         id: randomFormula.id,
         tex: randomFormula.tex,
         el: el,
-        y: -50,
+        y: -60,
         x: randomX
     });
 }
 
 function gameLoop() {
-    const containerHeight = document.getElementById('game-container') ? document.getElementById('game-container').offsetHeight : 600;
-    const limit = 600 - 150; // Trừ đi chiều cao khu vực điều khiển
+    // Lấy chiều cao động (để responsive)
+    const container = document.getElementById('game-container-main');
+    if(!container) return;
+    const limit = container.offsetHeight - 80; // Trừ vùng controls
 
-    // Di chuyển thiên thạch
     gameMeteors.forEach((m, index) => {
-        m.y += gameSpeed;
+        m.y += gameCurrentSpeed;
         m.el.style.top = m.y + 'px';
 
-        // Kiểm tra chạm đáy (Mất mạng)
         if (m.y > limit) {
             handleLifeLost(index);
         }
     });
-
-    // Tăng độ khó theo thời gian
-    if (gameScore > 0 && gameScore % 50 === 0) {
-        gameSpeed += 0.005;
-    }
 }
 
 function handleLifeLost(index) {
@@ -595,30 +616,37 @@ function handleLifeLost(index) {
     if (m && m.el) m.el.remove();
     gameMeteors.splice(index, 1);
     
+    // --- PENALTY ---
     gameLives--;
-    updateGameUI();
+    gameCombo = 0; // Mất mạng là mất Combo
     
-    // Hiệu ứng màn hình đỏ
+    // Hiệu ứng Rung màn hình (Screen Shake)
+    const mainContainer = document.getElementById('game-container-main');
+    mainContainer.classList.remove('shake');
+    void mainContainer.offsetWidth; // Trigger reflow
+    mainContainer.classList.add('shake');
+
+    // Màn hình đỏ cảnh báo
     const area = document.getElementById('game-area');
-    area.style.background = 'rgba(220, 38, 38, 0.2)';
+    area.style.background = 'rgba(220, 38, 38, 0.3)';
     setTimeout(() => area.style.background = 'transparent', 200);
+
+    updateGameUI();
 
     if (gameLives <= 0) {
         stopGame(true);
+    } else {
+        // Nếu còn mạng, reload lại nút để tránh bị kẹt nếu thiên thạch vừa mất là cái duy nhất
+        refreshGameOptions(); 
     }
 }
 
-// Cập nhật các nút bắn bên dưới
 function refreshGameOptions() {
-    // Tìm thiên thạch thấp nhất (nguy hiểm nhất) để đảm bảo có đáp án đúng cho nó
-    // Sắp xếp theo y giảm dần (y càng lớn càng gần đáy)
+    // Logic tìm mục tiêu ưu tiên (gần đáy nhất)
     if (gameMeteors.length === 0) {
-        // Nếu không có thiên thạch, lấy random options
         renderGameButtons(null);
         return;
     }
-
-    // Lấy thiên thạch nguy hiểm nhất (gần đáy nhất)
     let target = gameMeteors.reduce((prev, current) => (prev.y > current.y) ? prev : current);
     renderGameButtons(target);
 }
@@ -629,73 +657,114 @@ function renderGameButtons(targetMeteor) {
 
     let options = [];
     
-    // 1. Luôn phải có đáp án đúng của thiên thạch mục tiêu (nếu có)
+    // 1. Đáp án đúng
     if (targetMeteor) {
-        options.push(targetMeteor);
+        // Tìm object gốc trong gamePool để lấy đủ data
+        const original = gamePool.find(f => f.tex === targetMeteor.tex) || targetMeteor;
+        options.push(original);
     } else {
-        // Nếu chưa có thiên thạch, lấy random 1 cái làm "mồi"
-        options.push(formulas[Math.floor(Math.random() * formulas.length)]);
+        options.push(gamePool[Math.floor(Math.random() * gamePool.length)]);
     }
 
-    // 2. Thêm 3 đáp án sai
+    // 2. Đáp án nhiễu
     while (options.length < 4) {
-        const r = formulas[Math.floor(Math.random() * formulas.length)];
-        // Tránh trùng lặp công thức (so sánh tex hoặc id)
-        const exists = options.find(o => o.tex === r.tex);
-        if (!exists) options.push(r);
+        const r = gamePool[Math.floor(Math.random() * gamePool.length)];
+        if (!options.find(o => o.tex === r.tex)) options.push(r);
     }
 
-    // 3. Xáo trộn vị trí
     options = shuffleArray(options);
 
-    // 4. Render buttons
     options.forEach(opt => {
         const btn = document.createElement('button');
         btn.className = 'game-btn';
-        // Hiển thị công thức toán học
         btn.innerHTML = `\\(${opt.tex}\\)`;
-        btn.onclick = () => fireLaser(opt);
+        btn.onclick = () => fireLaser(opt); // Truyền object công thức vào
         container.appendChild(btn);
     });
 
-    // Render MathJax cho các nút mới
     MathJax.typesetPromise([container]);
 }
 
-// Xử lý bắn
 function fireLaser(selectedFormula) {
     if (!isGameRunning) return;
 
-    // Kiểm tra xem công thức vừa chọn có khớp với thiên thạch nào trên màn hình không?
-    // Ưu tiên thiên thạch thấp nhất nếu có nhiều cái giống nhau
-    
-    // Lọc ra các thiên thạch khớp với đáp án người chơi chọn
     const matches = gameMeteors.filter(m => m.tex === selectedFormula.tex);
     
     if (matches.length > 0) {
-        // Bắn trúng! Chọn cái gần đáy nhất để phá hủy
+        // --- HIT (TRÚNG) ---
         const target = matches.reduce((prev, current) => (prev.y > current.y) ? prev : current);
         
         createExplosion(target.x, target.y);
-        
-        // Xóa khỏi DOM và mảng
+        showFloatingText(target.x, target.y, calculateScore()); // Hiệu ứng điểm bay
+
         target.el.remove();
         gameMeteors = gameMeteors.filter(m => m !== target);
         
-        // Cộng điểm
-        gameScore += 10;
+        // Tăng Combo
+        gameCombo++;
+        
+        // Kiểm tra Level Up
+        checkLevelUp();
+        
         updateGameUI();
-
-        // Ngay lập tức đổi bộ đáp án mới cho thiên thạch tiếp theo
         refreshGameOptions();
     } else {
-        // Bắn trượt (trừ điểm hoặc phạt thời gian)
-        gameScore = Math.max(0, gameScore - 5);
+        // --- MISS (TRƯỢT) ---
+        gameCombo = 0; // Reset Combo
+        gameScore = Math.max(0, gameScore - 10); // Trừ điểm nặng hơn
+        
+        // Visual phạt nhẹ
+        const container = document.getElementById('game-controls');
+        container.style.transform = 'translateY(5px)';
+        setTimeout(() => container.style.transform = 'translateY(0)', 100);
+        
         updateGameUI();
-        // Rung màn hình phạt
-        const container = document.querySelector('.game-container');
-        container.style.transform = 'translateX(5px)';
-        setTimeout(() => container.style.transform = 'translateX(0)', 50);
+    }
+}
+
+function calculateScore() {
+    // Công thức điểm: (Điểm cơ bản + Điểm Combo)
+    const basePoints = 10;
+    const comboBonus = gameCombo * 2; 
+    const points = basePoints + comboBonus;
+    gameScore += points;
+    return points;
+}
+
+function showFloatingText(x, y, points) {
+    const area = document.getElementById('game-area');
+    const floatEl = document.createElement('div');
+    floatEl.className = 'floating-text';
+    floatEl.style.left = (x + 20) + 'px';
+    floatEl.style.top = y + 'px';
+    
+    // Hiển thị nội dung: +Điểm (Combo!)
+    let text = `+${points}`;
+    if (gameCombo > 1) text += ` <span style="color:#fff; font-size:0.8em">x${gameCombo}</span>`;
+    floatEl.innerHTML = text;
+
+    area.appendChild(floatEl);
+    setTimeout(() => floatEl.remove(), 1000);
+}
+
+function checkLevelUp() {
+    // Cứ mỗi 150 điểm thì lên 1 cấp
+    const newLevel = Math.floor(gameScore / 150) + 1;
+    if (newLevel > gameLevel) {
+        gameLevel = newLevel;
+        // Tăng tốc độ game
+        gameCurrentSpeed = gameBaseSpeed + (gameLevel * 0.2);
+        // Tăng tốc độ sinh quái (giảm thời gian interval)
+        const newSpawnRate = Math.max(800, 2500 - (gameLevel * 200)); 
+        startSpawnLoop(newSpawnRate);
+        
+        // Thông báo Level Up
+        const area = document.getElementById('game-area');
+        const lvUp = document.createElement('div');
+        lvUp.textContent = `LEVEL ${gameLevel} !!!`;
+        lvUp.style = "position:absolute; top:40%; width:100%; text-align:center; font-size:3em; color:#fff; font-weight:bold; text-shadow:0 0 20px blue; animation: floatUp 1.5s forwards;";
+        area.appendChild(lvUp);
+        setTimeout(() => lvUp.remove(), 1500);
     }
 }
 
@@ -703,26 +772,32 @@ function createExplosion(x, y) {
     const area = document.getElementById('game-area');
     const boom = document.createElement('div');
     boom.className = 'explosion';
-    boom.style.left = (x + 35) + 'px'; // Canh giữa
+    boom.style.left = (x + 35) + 'px';
     boom.style.top = (y + 20) + 'px';
     area.appendChild(boom);
-    
-    // Tự xóa sau khi animation xong
     setTimeout(() => boom.remove(), 300);
 }
 
 function updateGameUI() {
     document.getElementById('game-score').textContent = gameScore;
+    document.getElementById('game-level').textContent = gameLevel;
+    
+    // Hiển thị Combo
+    const comboEl = document.getElementById('combo-display');
+    const comboCountEl = document.getElementById('combo-count');
+    if (gameCombo > 1) {
+        comboEl.classList.remove('hidden');
+        comboCountEl.textContent = gameCombo;
+    } else {
+        comboEl.classList.add('hidden');
+    }
+
     let hearts = '';
     for(let i=0; i<gameLives; i++) hearts += '❤️';
     document.getElementById('game-lives').textContent = hearts;
 }
 
-// --- Cập nhật logic Refresh Button ---
-// Cần gọi refreshGameOptions() liên tục để đảm bảo nút bấm luôn phù hợp với thiên thạch đang rơi?
-// Cách tốt hơn: Chỉ đổi nút khi:
-// 1. Vừa bắn trúng mục tiêu.
-// 2. Hoặc mỗi 3 giây nếu không ai bắn gì (để tránh bị kẹt).
+// Giữ lại interval kiểm tra nút bấm để tránh kẹt
 setInterval(() => {
     if(isGameRunning) refreshGameOptions();
-}, 3000);
+}, 4000);
