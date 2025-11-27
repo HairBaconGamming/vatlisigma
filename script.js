@@ -170,16 +170,32 @@ function renderList() {
 }
 
 function switchTab(tabName) {
+    // 1. Ẩn tất cả các view và bỏ trạng thái active của nút
     document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
 
+    // 2. Nếu chuyển sang tab KHÁC game, hãy dừng game lại (để tránh chạy ngầm)
+    if (tabName !== 'game' && typeof stopGame === 'function') {
+        // Dừng game, reset về màn hình chờ (false = không hiện Game Over)
+        stopGame(false);
+    }
+
+    // 3. Xử lý logic hiển thị từng tab
     if (tabName === 'list') {
         document.getElementById('list-view').classList.add('active');
         document.querySelector('button[onclick="switchTab(\'list\')"]').classList.add('active');
-    } else {
+    } 
+    else if (tabName === 'quiz') {
         document.getElementById('quiz-view').classList.add('active');
         document.querySelector('button[onclick="switchTab(\'quiz\')"]').classList.add('active');
+        // Tạo câu hỏi mới khi vào tab Quiz
         nextQuestion(); 
+    } 
+    else if (tabName === 'game') {
+        document.getElementById('game-view').classList.add('active');
+        document.querySelector('button[onclick="switchTab(\'game\')"]').classList.add('active');
+        // Đảm bảo game ở trạng thái chờ (hiện nút Start)
+        if(typeof stopGame === 'function') stopGame(false);
     }
 }
 
