@@ -93,47 +93,73 @@
 
         <div id="game-view" class="view-section">
             <div class="game-container" id="game-container-main">
+                <div class="stars"></div>
+                <div class="stars2"></div>
+
                 <div class="game-header">
                     <div class="header-left">
                         <div class="score-box">⭐ <span id="game-score">0</span></div>
                         <div class="level-box">LV. <span id="game-level">1</span></div>
                     </div>
-                    
                     <div id="combo-display" class="combo-box hidden">COMBO x<span id="combo-count">0</span> 🔥</div>
-
                     <div class="life-box" id="game-lives">❤️❤️❤️</div>
                 </div>
                 
                 <div id="game-overlay" class="game-overlay">
-                    <h1 class="game-title">METEOR DEFENSE</h1>
+                    <h1 class="game-title">DEFENSE COMMANDER</h1>
                     
                     <div class="game-settings-panel">
-                        <div class="setting-row">
-                            <label>Độ khó:</label>
-                            <select id="game-difficulty-select">
-                                <option value="1">Dễ (Tốc độ chậm)</option>
-                                <option value="1.5" selected>Thường (Vừa phải)</option>
-                                <option value="2.2">Khó (Siêu tốc)</option>
-                                <option value="3">Địa ngục ☠️</option>
-                            </select>
+                        <div class="setting-group">
+                            <label>📡 Mục tiêu đánh chặn (Chủ đề):</label>
+                            <select id="game-topic-select" class="full-width-select">
+                                <option value="all">🌐 Tất cả các chương</option>
+                                </select>
+                        </div>
+
+                        <div class="setting-row-group">
+                            <div class="setting-col">
+                                <label>⚡ Tốc độ:</label>
+                                <select id="game-difficulty-select">
+                                    <option value="1">Dễ</option>
+                                    <option value="1.5" selected>Thường</option>
+                                    <option value="2.5">Khó</option>
+                                    <option value="4">Siêu cấp</option>
+                                </select>
+                            </div>
+
+                            <div class="setting-col">
+                                <label>🔫 Chế độ bắn:</label>
+                                <select id="game-mode-select">
+                                    <option value="multiple">Trắc nghiệm (4 Nút)</option>
+                                    <option value="essay">Tự luận (Gõ phím - Chậm x3)</option>
+                                </select>
+                            </div>
                         </div>
                         
                         <div class="setting-row">
                             <label class="toggle-switch">
                                 <input type="checkbox" id="game-advanced-toggle">
                                 <span class="slider"></span>
-                                <span class="label-text" style="color:black">Bao gồm công thức Nâng cao</span>
+                                <span class="label-text" style="color:#bfdbfe">Bao gồm kiến thức Nâng cao</span>
                             </label>
                         </div>
                     </div>
 
-                    <p id="overlay-desc">Bắn hạ thiên thạch bằng kiến thức Vật Lý!</p>
-                    <button id="btn-start-game" onclick="startGame()">🚀 KHỞI ĐỘNG</button>
+                    <button id="btn-start-game" onclick="startGame()">🚀 KHỞI ĐỘNG CHIẾN HẠM</button>
                 </div>
 
-                <div id="game-area"></div>
+                <div id="game-area">
+                    <div id="player-ship" class="ship-model hidden">
+                        <div class="ship-body"></div>
+                        <div class="ship-cockpit"></div>
+                        <div class="ship-engine"></div>
+                        <div class="ship-gun left"></div>
+                        <div class="ship-gun right"></div>
+                    </div>
+                </div>
 
-                <div id="game-controls" class="game-controls hidden"></div>
+                <div id="game-controls" class="game-controls hidden">
+                    </div>
             </div>
         </div>
     </div>
