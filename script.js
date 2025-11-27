@@ -524,6 +524,8 @@ function initGameSettings() {
 document.addEventListener('DOMContentLoaded', initGameSettings);
 
 // --- GAME LOOP CHÍNH ---
+// Trong file script.js
+
 function startGame() {
     if(isGameRunning) return;
     
@@ -537,9 +539,9 @@ function startGame() {
     gameTopic = document.getElementById('game-topic-select') ? document.getElementById('game-topic-select').value : 'all';
     gameMode = document.getElementById('game-mode-select') ? document.getElementById('game-mode-select').value : 'multiple';
 
-    // **LOGIC ĐẶC BIỆT**: Nếu là Tự Luận, giảm tốc độ gấp 3 lần
+    // --- CẬP NHẬT: GIẢM TỐC ĐỘ GẤP 4 LẦN CHO TỰ LUẬN ---
     if (gameMode === 'essay') {
-        difficultyMultiplier = difficultyMultiplier / 3;
+        difficultyMultiplier = difficultyMultiplier / 4; // Chậm hơn nữa để kịp gõ
     }
 
     // 2. LỌC DỮ LIỆU
@@ -566,20 +568,18 @@ function startGame() {
             <div class="ship-body"></div><div class="ship-cockpit"></div>
             <div class="ship-engine"></div><div class="ship-gun left"></div><div class="ship-gun right"></div>
         </div>
-    `; // Reset area but keep ship
+    `;
     
     document.getElementById('game-overlay').classList.add('hidden');
     document.getElementById('game-controls').classList.remove('hidden');
     document.getElementById('player-ship').classList.remove('hidden');
 
     updateGameUI();
-    
-    // Render Controls dựa trên chế độ chơi
-    setupGameControlsUI();
+    setupGameControlsUI(); // Gọi hàm render giao diện
 
     // 4. START LOOPS
     gameInterval = setInterval(gameLoop, 16);
-    startSpawnLoop(gameMode === 'essay' ? 4000 : 2500); // Tự luận spawn chậm hơn
+    startSpawnLoop(gameMode === 'essay' ? 5000 : 2500); // Tăng thời gian spawn cho tự luận
 }
 
 function setupGameControlsUI() {
@@ -587,22 +587,36 @@ function setupGameControlsUI() {
     container.innerHTML = '';
 
     if (gameMode === 'multiple') {
-        refreshGameOptions(); // Render 4 nút trắc nghiệm
+        refreshGameOptions(); 
     } else {
-        // Render Ô nhập liệu Tự luận
+        // --- CẬP NHẬT: THÊM NÚT BẮN VÀO GIAO DIỆN TỰ LUẬN ---
         container.innerHTML = `
             <div class="essay-controls-container">
-                <math-field id="game-essay-input" virtual-keyboard-mode="onfocus" placeholder="Nhập công thức rồi nhấn Enter..."></math-field>
+                <math-field id="game-essay-input" virtual-keyboard-mode="onfocus" placeholder="Nhập công thức..."></math-field>
+                <button id="btn-fire-essay" class="fire-btn">BẮN 🔥</button>
             </div>
         `;
+        
         const mf = document.getElementById('game-essay-input');
-        // Lắng nghe sự kiện nhấn Enter
+        const btnFire = document.getElementById('btn-fire-essay');
+
+        // Xử lý khi nhấn nút Bắn
+        btnFire.onclick = () => {
+            if(mf.value.trim() !== "") {
+                fireEssayLaser(mf.value);
+                mf.value = '';
+                mf.focus();
+            }
+        };
+
+        // Xử lý khi nhấn Enter
         mf.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 fireEssayLaser(mf.value);
-                mf.value = ''; // Xóa sau khi bắn
+                mf.value = '';
             }
         });
+        
         setTimeout(() => mf.focus(), 100);
     }
 }
@@ -614,21 +628,33 @@ function startSpawnLoop(intervalTime) {
 
 function stopGame(isGameOver = false) {
     isGameRunning = false;
-    clearInterval(gameInterval);
-    clearInterval(spawnInterval);
+    if (gameInterval) clearInterval(gameInterval);
+    if (spawnInterval) clearInterval(spawnInterval);
     
-    document.getElementById('game-overlay').classList.remove('hidden');
-    document.getElementById('game-controls').classList.add('hidden');
-    document.getElementById('player-ship').classList.add('hidden');
+    // An toàn: Kiểm tra phần tử tồn tại trước khi thao tác
+    const overlay = document.getElementById('game-overlay');
+    const controls = document.getElementById('game-controls');
+    const ship = document.getElementById('player-ship');
+    
+    if (overlay) overlay.classList.remove('hidden');
+    if (controls) controls.classList.add('hidden');
+    if (ship) ship.classList.add('hidden');
 
-    const title = document.querySelector('.game-title');
+    // Cố gắng tìm Title theo Class mới hoặc ID cũ để tránh lỗi null
+    const title = document.querySelector('.game-title') || document.getElementById('overlay-title');
     const desc = document.getElementById('overlay-desc');
     const btn = document.getElementById('btn-start-game');
+
+    // Nếu HTML bị thiếu hẳn, dừng hàm để không crash
+    if (!title || !desc || !btn) {
+        console.warn("Thiếu HTML game interface! Hãy cập nhật index.html");
+        return;
+    }
 
     if (isGameOver) {
         title.textContent = "💀 GAME OVER";
         title.style.color = "red";
-        desc.innerHTML = `Điểm tổng kết: <span style="color:#facc15; font-size:1.5em">${gameScore}</span><br>Chế độ: ${gameMode === 'essay' ? 'Tự luận (Hardcore)' : 'Trắc nghiệm'}`;
+        desc.innerHTML = `Điểm tổng kết: <span style="color:#facc15; font-size:1.5em">${gameScore}</span>`;
         btn.textContent = "Thử lại ngay 🔥";
     } else {
         title.textContent = "DEFENSE COMMANDER";
@@ -912,6 +938,3 @@ function updateGameUI() {
     let hearts = ''; for(let i=0; i<gameLives; i++) hearts += '❤️';
     document.getElementById('game-lives').textContent = hearts;
 }
-
-// Loop kiểm tra an toàn cho trắc nghiệm
-setInterval(() => { if(isGameRunning && gameMode === 'multiple') refreshGameOptions(); }, 4000);

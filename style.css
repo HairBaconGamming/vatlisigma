@@ -595,11 +595,57 @@ math-field:focus-within {
 .setting-col { flex: 1; display: flex; flex-direction: column; gap: 5px; }
 .setting-group label { color: #94a3b8; font-size: 0.9em; margin-bottom: 5px; display: block; }
 
-/* 6. Input Tự luận trong game */
-#game-essay-input {
-    width: 80%; padding: 15px; font-size: 1.2em; border: 2px solid #3b82f6; border-radius: 10px;
-    background: rgba(255,255,255,0.9); text-align: center; box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
-}
+/* --- CẬP NHẬT CSS CHO CHẾ ĐỘ TỰ LUẬN --- */
+
 .essay-controls-container {
-    width: 100%; display: flex; justify-content: center; padding-bottom: 20px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px; /* Khoảng cách giữa ô nhập và nút */
+    padding-bottom: 20px;
+}
+
+/* Chỉnh lại ô nhập liệu để không chiếm hết chỗ */
+#game-essay-input {
+    width: 60%; 
+    padding: 10px;
+    font-size: 1.2em;
+    border: 2px solid #3b82f6;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.95);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+}
+
+/* Style cho nút Bắn mới */
+.fire-btn {
+    padding: 10px 20px;
+    font-size: 1.2em;
+    font-weight: bold;
+    color: white;
+    background: linear-gradient(to bottom, #ef4444, #dc2626);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #991b1b; /* Hiệu ứng nút nổi 3D */
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.fire-btn:active {
+    transform: translateY(4px); /* Hiệu ứng nhấn xuống */
+    box-shadow: 0 0 0 #991b1b;
+}
+
+/* Responsive cho mobile */
+@media (max-width: 600px) {
+    .essay-controls-container {
+        flex-direction: column; /* Trên điện thoại thì xếp dọc cho dễ bấm */
+    }
+    #game-essay-input {
+        width: 90%;
+    }
+    .fire-btn {
+        width: 90%;
+        padding: 15px;
+    }
 }
