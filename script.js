@@ -647,24 +647,22 @@ function refreshInkTarget() {
     inkTargetMeteor = gameMeteors.reduce((p, c) => (p.y > c.y) ? p : c);
     targetInkText = inkTargetMeteor.tex;
 
-    // 1. Hiển thị Visual (LaTeX đẹp cho người dùng nhìn)
+    // 1. Hiển thị Visual (LaTeX đẹp cho người dùng đồ theo)
     const displayDiv = document.getElementById('ink-target-display');
     displayDiv.innerHTML = `\\[${targetInkText}\\]`;
     MathJax.typesetPromise([displayDiv]);
 
-    // 2. Vẽ Logic Buffer (Để máy chấm điểm)
-    // Tăng độ dày nét vẽ mẫu lên để người chơi dễ đồ trúng hơn
+    // 2. Vẽ Logic Buffer (Dùng font serif để giả lập hình dáng chữ cho máy chấm điểm)
     logicCtx.clearRect(0, 0, logicCanvas.width, logicCanvas.height);
     logicCtx.save();
-    // Dùng font đơn giản để tạo khung xương chuẩn
-    logicCtx.font = "bold 80px Arial, sans-serif"; 
+    logicCtx.font = "italic bold 60px 'Times New Roman', serif"; // Giả lập style MathJax
     logicCtx.textAlign = "center";
     logicCtx.textBaseline = "middle";
-    logicCtx.fillStyle = "black"; // Màu không quan trọng, chỉ cần alpha
-    
-    // Vẽ chữ vào giữa canvas ẩn (cần khớp vị trí với div hiển thị)
-    // Lưu ý: Tinh chỉnh offset Y để khớp với CSS transform(-50%, -60%) của div
-    logicCtx.fillText(normalizeTex(targetInkText), logicCanvas.width/2, logicCanvas.height/2 - 20);
+    logicCtx.fillStyle = "white";
+    // Vẽ chữ vào giữa canvas ẩn
+    // Lưu ý: Vị trí vẽ này phải khớp tương đối với vị trí div #ink-target-display
+    // Div đang translate(-50%, -60%). Canvas vẽ ở width/2, height/2 - offset
+    logicCtx.fillText(normalizeTex(targetInkText), logicCanvas.width/2, logicCanvas.height/2 - 10);
     logicCtx.restore();
 }
 
@@ -708,99 +706,122 @@ function stopDrawing() {
     inkCtx.beginPath(); // Reset path để nét sau không nối nét trước
 }
 
-// --- LOGIC CHẤM ĐIỂM "XỊN" (CHECK LOGIC) ---
-function castSpell() {
-    if(!inkTargetMeteor || gameMode !== 'ink') return;
+// Thêm các hàm hỗ trợ mới sau phần // --- LOGIC VẼ MA THUẬT (INK MODE - NÂNG CAO) --- và trước function setupInkCanvas()
 
-    // Lấy dữ liệu pixel
-    const width = inkCanvas.width;
-    const height = inkCanvas.height;
-    const userImg = inkCtx.getImageData(0, 0, width, height);
-    const targetImg = logicCtx.getImageData(0, 0, width, height);
-    
-    // CẤU HÌNH THUẬT TOÁN GRID
-    const gridSize = 15; // Kích thước ô lưới (càng lớn càng dễ tính, càng nhỏ càng gắt)
-    let totalTargetBlocks = 0; // Tổng số ô chứa nét mẫu
-    let matchedBlocks = 0;     // Số ô người chơi vẽ trúng
-    let wrongBlocks = 0;       // Số ô người chơi vẽ bậy (ra ngoài)
-
-    // Quét qua từng ô lưới (Grid Cell) thay vì từng pixel
-    for (let y = 0; y < height; y += gridSize) {
-        for (let x = 0; x < width; x += gridSize) {
-            
-            // Kiểm tra trong ô vuông này có mực không
-            let hasTargetInk = false;
-            let hasUserInk = false;
-
-            // Quét pixel trong ô lưới hiện tại
-            // (Dùng vòng lặp tối ưu, chỉ quét mẫu đại diện để tăng tốc)
-            for (let gy = 0; gy < gridSize; gy+=2) {
-                if (y + gy >= height) break;
-                for (let gx = 0; gx < gridSize; gx+=2) {
-                    if (x + gx >= width) break;
-                    
-                    const index = ((y + gy) * width + (x + gx)) * 4;
-                    
-                    // Kênh Alpha > 50 coi như là có mực
-                    if (!hasTargetInk && targetImg.data[index + 3] > 50) hasTargetInk = true;
-                    if (!hasUserInk && userImg.data[index + 3] > 50) hasUserInk = true;
-                    
-                    if (hasTargetInk && hasUserInk) break; // Đã tìm thấy cả 2 thì next ô khác
-                }
-            }
-
-            // CHẤM ĐIỂM Ô LƯỚI
-            if (hasTargetInk) {
-                totalTargetBlocks++;
-                if (hasUserInk) matchedBlocks++; // Vẽ đúng chỗ cần vẽ
-            } else {
-                if (hasUserInk) wrongBlocks++;   // Vẽ vào chỗ trống (sai)
+function getCenterOfMass(data, width, height, threshold = 50) {
+    let sumX = 0, sumY = 0, count = 0;
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const i = (y * width + x) * 4 + 3;
+            if (data[i] > threshold) {
+                sumX += x;
+                sumY += y;
+                count++;
             }
         }
     }
+    return count > 0 ? { x: sumX / count, y: sumY / count } : { x: width / 2, y: height / 2 };
+}
 
-    if (totalTargetBlocks === 0) return; // Lỗi không có mẫu
+function dilate(data, width, height, threshold = 100, iterations = 1) {
+    for (let it = 0; it < iterations; it++) {
+        const newData = new Uint8ClampedArray(data);
+        for (let y = 1; y < height - 1; y++) {
+            for (let x = 1; x < width - 1; x++) {
+                const i = (y * width + x) * 4 + 3;
+                if (newData[i] <= threshold) {
+                    if (newData[((y - 1) * width + x) * 4 + 3] > threshold ||
+                        newData[(y * width + x - 1) * 4 + 3] > threshold ||
+                        newData[(y * width + x + 1) * 4 + 3] > threshold ||
+                        newData[((y + 1) * width + x) * 4 + 3] > threshold ||
+                        newData[((y - 1) * width + x - 1) * 4 + 3] > threshold ||
+                        newData[((y - 1) * width + x + 1) * 4 + 3] > threshold ||
+                        newData[((y + 1) * width + x - 1) * 4 + 3] > threshold ||
+                        newData[((y + 1) * width + x + 1) * 4 + 3] > threshold) {
+                        data[i] = 255;
+                    }
+                }
+            }
+        }
+    }
+}
 
-    // TÍNH TOÁN KẾT QUẢ
-    // 1. Độ đầy đủ (Completeness): Bạn đã vẽ được bao nhiêu % của công thức?
-    // Phải vẽ được ít nhất 70% nét của mẫu.
-    const completeness = matchedBlocks / totalTargetBlocks;
+// --- LOGIC CHẤM ĐIỂM "XỊN" (CHECK LOGIC) ---
+function castSpell() {
+    if (!inkTargetMeteor || gameMode !== 'ink') return;
 
-    // 2. Độ sạch (Cleanliness): Trong những gì bạn vẽ, bao nhiêu % là đúng?
-    // Phạt nặng nếu vẽ bậy. 
-    // Công thức: (Số ô đúng) / (Số ô đúng + Số ô sai * Hệ số phạt)
-    const accuracy = matchedBlocks / (matchedBlocks + (wrongBlocks * 1.5));
+    const width = inkCanvas.width;
+    const height = inkCanvas.height;
 
-    // Debug để cân chỉnh độ khó (Bật F12 xem nếu cần)
-    console.log(`Độ đầy đủ: ${(completeness*100).toFixed(0)}% (Yêu cầu > 65%)`);
-    console.log(`Độ chính xác: ${(accuracy*100).toFixed(0)}% (Yêu cầu > 60%)`);
+    // Lấy dữ liệu pixel gốc
+    const originalUserImg = inkCtx.getImageData(0, 0, width, height);
+    const targetImg = logicCtx.getImageData(0, 0, width, height);
+    const tData = targetImg.data;
 
-    // ĐIỀU KIỆN CHIẾN THẮNG (Đã cân chỉnh cho trải nghiệm tốt nhất)
-    if (completeness > 0.65 && accuracy > 0.60) {
-        // --- THÀNH CÔNG ---
+    // Tính trung tâm khối lượng để căn chỉnh vị trí vẽ
+    const userCenter = getCenterOfMass(originalUserImg.data, width, height, 20); // Ngưỡng thấp cho nét vẽ mỏng
+    const targetCenter = getCenterOfMass(tData, width, height, 100);
+    const dx = targetCenter.x - userCenter.x;
+    const dy = targetCenter.y - userCenter.y;
+
+    // Tạo canvas tạm để shift hình vẽ người dùng
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.clearRect(0, 0, width, height);
+    tempCtx.drawImage(inkCanvas, dx, dy);
+
+    // Lấy dữ liệu sau khi shift
+    const userImg = tempCtx.getImageData(0, 0, width, height);
+    const uData = userImg.data;
+
+    // Sao chép và dilate target để mở rộng vùng chấp nhận (khoan dung vị trí và nét vẽ)
+    const dilatedTData = new Uint8ClampedArray(tData);
+    dilate(dilatedTData, width, height, 100, 3); // Dilate 3 lần cho vùng rộng hơn
+
+    let targetPixels = 0;
+    let matchedPixels = 0;
+    let wrongPixels = 0;
+
+    // Quét pixel với ngưỡng thông minh hơn
+    for (let i = 3; i < uData.length; i += 4) {
+        const isTarget = dilatedTData[i] > 100;
+        const isUser = uData[i] > 20; // Ngưỡng thấp cho nét vẽ
+
+        if (isTarget) {
+            targetPixels++;
+            if (isUser) matchedPixels++;
+        } else if (isUser) {
+            wrongPixels++;
+        }
+    }
+
+    if (targetPixels === 0) return;
+
+    const accuracy = matchedPixels / targetPixels; // Recall: Phủ đúng vùng chữ
+    const precision = matchedPixels / (matchedPixels + wrongPixels + 1e-6); // Precision: Không vẽ thừa quá nhiều
+    const messiness = wrongPixels / targetPixels;
+
+    // DEBUG: console.log(`Acc: ${accuracy.toFixed(2)}, Prec: ${precision.toFixed(2)}, Mess: ${messiness.toFixed(2)}`);
+
+    // Điều kiện thắng "thần thánh": Kết hợp recall, precision, messiness với ngưỡng khoan dung nhưng vẫn yêu cầu đúng công thức
+    if (accuracy > 0.30 && precision > 0.25 && messiness < 2.5) {
+        // Success
         fireLaserAction(inkTargetMeteor.tex, inkTargetMeteor);
         createMagicExplosion();
         clearInkCanvas();
-        
-        // Hiệu ứng chữ khen thưởng
-        const praise = completeness > 0.9 ? "TUYỆT ĐỐI! ⚡" : "CHÍNH XÁC! ✨";
-        showFloatingText(width/2, height/2 - 50, praise);
     } else {
-        // --- THẤT BẠI ---
+        // Fail
         gameCombo = 0;
-        
-        // Thông báo lỗi cụ thể để người chơi sửa
-        let msg = "Sai rồi! ❌";
-        if (completeness <= 0.65) msg = "Thiếu nét! ✍️";
-        else if (accuracy <= 0.60) msg = "Đừng vẽ thừa! 🚫";
-        
-        showFloatingText(width/2, height/2, msg);
-        
-        // Rung lắc bảng
+        showFloatingText(width / 2, height / 2, "Vẽ lại đi! ❌");
+
+        // Hiệu ứng rung lắc
         const container = document.getElementById('ink-container');
-        container.style.animation = 'none';
-        container.offsetHeight; /* trigger reflow */
-        container.style.animation = 'shake 0.3s';
+        container.style.transform = "translateX(10px)";
+        setTimeout(() => container.style.transform = "translateX(0)", 100);
+        setTimeout(() => container.style.transform = "translateX(-10px)", 200);
+        setTimeout(() => container.style.transform = "translateX(0)", 300);
     }
 }
 
