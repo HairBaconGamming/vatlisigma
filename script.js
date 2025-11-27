@@ -633,6 +633,75 @@ function setupInkCanvas() {
     refreshInkTarget();
 }
 
+// ======================================================
+// HÀM VẼ LOGIC THÔNG MINH (Xử lý phân số & số mũ cơ bản)
+// ======================================================
+function drawSmartTex(ctx, tex, x, y, size) {
+    ctx.save();
+    ctx.font = `bold ${size}px "Times New Roman", serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = size * 0.6; // Hitbox dày bằng 60% kích thước chữ (Rất rộng)
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "white"; // Màu mực Hitbox (ẩn)
+    ctx.fillStyle = "white";   // Tô đặc ruột
+
+    // Xử lý Phân số: \frac{A}{B}
+    if (tex.includes("\\frac")) {
+        // Tách tử số và mẫu số đơn giản
+        // Lưu ý: Regex này xử lý trường hợp đơn giản \frac{...}{...}
+        const match = tex.match(/\\frac\{(.+?)\}\{(.+?)\}/);
+        if (match) {
+            const num = match[1]; // Tử số
+            const den = match[2]; // Mẫu số
+            
+            // Vẽ Tử số (Dịch lên trên)
+            drawTextWithStroke(ctx, normalizeTex(num), x, y - size * 0.6);
+            // Vẽ gạch ngang phân số
+            ctx.beginPath();
+            ctx.moveTo(x - size, y);
+            ctx.lineTo(x + size, y);
+            ctx.stroke();
+            // Vẽ Mẫu số (Dịch xuống dưới)
+            drawTextWithStroke(ctx, normalizeTex(den), x, y + size * 0.6);
+            
+            ctx.restore();
+            return;
+        }
+    }
+
+    // Xử lý Số mũ: A^2 hoặc A^{2}
+    if (tex.includes("^")) {
+        const parts = tex.split("^");
+        const base = parts[0];
+        let exp = parts[1].replace(/[\{\}]/g, ""); // Bỏ ngoặc nhọn
+        
+        // Vẽ cơ số
+        drawTextWithStroke(ctx, normalizeTex(base), x - size * 0.2, y + size * 0.1);
+        
+        // Vẽ số mũ (Nhỏ hơn, dịch lên góc phải)
+        ctx.font = `bold ${size * 0.6}px "Times New Roman", serif`;
+        ctx.lineWidth = size * 0.4;
+        drawTextWithStroke(ctx, normalizeTex(exp), x + size * 0.5, y - size * 0.4);
+        
+        ctx.restore();
+        return;
+    }
+
+    // Trường hợp thường (Viết thẳng)
+    drawTextWithStroke(ctx, normalizeTex(tex), x, y);
+    ctx.restore();
+}
+
+function drawTextWithStroke(ctx, text, x, y) {
+    ctx.strokeText(text, x, y); // Vẽ viền dày (tạo vùng an toàn)
+    ctx.fillText(text, x, y);   // Tô đặc ruột
+}
+
+// ======================================================
+// CẬP NHẬT HÀM refreshInkTarget
+// ======================================================
 function refreshInkTarget() {
     if(gameMode !== 'ink') return;
     
@@ -647,33 +716,16 @@ function refreshInkTarget() {
     inkTargetMeteor = gameMeteors.reduce((p, c) => (p.y > c.y) ? p : c);
     targetInkText = inkTargetMeteor.tex;
 
-    // 1. Hiển thị Visual (LaTeX đẹp cho người dùng nhìn - Giữ nguyên)
+    // 1. Hiển thị Visual (LaTeX đẹp cho mắt người)
     const displayDiv = document.getElementById('ink-target-display');
     displayDiv.innerHTML = `\\[${targetInkText}\\]`;
     MathJax.typesetPromise([displayDiv]);
 
-    // 2. Vẽ Logic Buffer (HITBOX ĐỂ CHẤM ĐIỂM)
+    // 2. Vẽ Logic Buffer (Hitbox cho máy chấm)
     logicCtx.clearRect(0, 0, logicCanvas.width, logicCanvas.height);
-    logicCtx.save();
     
-    // --- THAY ĐỔI QUAN TRỌNG TẠI ĐÂY ---
-    // Sử dụng font sans-serif đơn giản và nét CỰC DÀY để tạo vùng chấp nhận rộng
-    logicCtx.font = "bold 80px Arial, Helvetica, sans-serif"; 
-    logicCtx.textAlign = "center";
-    logicCtx.textBaseline = "middle";
-    
-    // Vẽ viền dày (Stroke) thay vì chỉ tô đặc -> Tăng diện tích trúng đích lên gấp 3 lần
-    logicCtx.lineWidth = 35; // Hitbox dày 35px (rất rộng)
-    logicCtx.lineJoin = 'round';
-    logicCtx.lineCap = 'round';
-    logicCtx.strokeStyle = "white"; 
-    logicCtx.strokeText(normalizeTex(targetInkText), logicCanvas.width/2, logicCanvas.height/2 - 20);
-    
-    // Tô thêm phần ruột chữ cho chắc chắn
-    logicCtx.fillStyle = "white";
-    logicCtx.fillText(normalizeTex(targetInkText), logicCanvas.width/2, logicCanvas.height/2 - 20);
-    
-    logicCtx.restore();
+    // Dùng hàm vẽ thông minh để khớp vị trí phân số/mũ
+    drawSmartTex(logicCtx, targetInkText, logicCanvas.width/2, logicCanvas.height/2, 80);
 }
 
 function clearInkCanvas() {
@@ -733,42 +785,21 @@ function getCenterOfMass(data, width, height, threshold = 50) {
     return count > 0 ? { x: sumX / count, y: sumY / count } : { x: width / 2, y: height / 2 };
 }
 
-function dilate(data, width, height, threshold = 100, iterations = 1) {
-    for (let it = 0; it < iterations; it++) {
-        const newData = new Uint8ClampedArray(data);
-        for (let y = 1; y < height - 1; y++) {
-            for (let x = 1; x < width - 1; x++) {
-                const i = (y * width + x) * 4 + 3;
-                if (newData[i] <= threshold) {
-                    if (newData[((y - 1) * width + x) * 4 + 3] > threshold ||
-                        newData[(y * width + x - 1) * 4 + 3] > threshold ||
-                        newData[(y * width + x + 1) * 4 + 3] > threshold ||
-                        newData[((y + 1) * width + x) * 4 + 3] > threshold ||
-                        newData[((y - 1) * width + x - 1) * 4 + 3] > threshold ||
-                        newData[((y - 1) * width + x + 1) * 4 + 3] > threshold ||
-                        newData[((y + 1) * width + x - 1) * 4 + 3] > threshold ||
-                        newData[((y + 1) * width + x + 1) * 4 + 3] > threshold) {
-                        data[i] = 255;
-                    }
-                }
-            }
-        }
-    }
-}
-
-// --- LOGIC CHẤM ĐIỂM "XỊN" (CHECK LOGIC) ---
+// ======================================================
+// CẬP NHẬT HÀM castSpell (DỄ CHẤM HƠN)
+// ======================================================
 function castSpell() {
     if (!inkTargetMeteor || gameMode !== 'ink') return;
 
     const width = inkCanvas.width;
     const height = inkCanvas.height;
 
-    // 1. Lấy dữ liệu
+    // 1. Lấy dữ liệu ảnh
     const originalUserImg = inkCtx.getImageData(0, 0, width, height);
     const targetImg = logicCtx.getImageData(0, 0, width, height);
     const tData = targetImg.data;
 
-    // 2. Căn chỉnh tâm (Shift Alignment) - Giữ nguyên logic thông minh này
+    // 2. Tự động căn chỉnh tâm (Shift Alignment) - Giữ nguyên vì rất hiệu quả
     const userCenter = getCenterOfMass(originalUserImg.data, width, height, 20);
     const targetCenter = getCenterOfMass(tData, width, height, 100);
     
@@ -776,62 +807,51 @@ function castSpell() {
     const dy = targetCenter.y - userCenter.y;
 
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = width;
-    tempCanvas.height = height;
+    tempCanvas.width = width; tempCanvas.height = height;
     const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.clearRect(0, 0, width, height);
-    tempCtx.drawImage(inkCanvas, dx, dy);
+    tempCtx.drawImage(inkCanvas, dx, dy); // Dời hình vẽ của bạn về đúng tâm mẫu
+    
+    const uData = tempCtx.getImageData(0, 0, width, height).data;
 
-    const userImg = tempCtx.getImageData(0, 0, width, height);
-    const uData = userImg.data;
-
-    // 3. So khớp (Không cần Dilate nữa vì ta đã vẽ nét dày ở bước refreshInkTarget rồi)
-    let targetPixels = 0;
-    let matchedPixels = 0;
-    let wrongPixels = 0;
+    // 3. So khớp pixel (Logic mới)
+    let userPixels = 0;   // Tổng số mực bạn vẽ
+    let hitPixels = 0;    // Số mực nằm TRONG vùng an toàn (Hitbox)
 
     for (let i = 3; i < uData.length; i += 4) {
-        const isTarget = tData[i] > 100; // Hitbox (đã rất dày)
-        const isUser = uData[i] > 30;    // Nét vẽ người chơi
+        const isUser = uData[i] > 30;    // Có mực của bạn
+        const isHit = tData[i] > 50;     // Nằm trong Hitbox mẫu
 
-        if (isTarget) {
-            targetPixels++;
-            if (isUser) matchedPixels++;
-        } else if (isUser) {
-            wrongPixels++;
+        if (isUser) {
+            userPixels++;
+            if (isHit) hitPixels++;
         }
     }
 
-    if (targetPixels === 0) return;
+    // Nếu chưa vẽ gì hoặc vẽ quá ít (dưới 50 pixel) thì bỏ qua
+    if (userPixels < 50) return;
 
-    // 4. Tính điểm (Đã nới lỏng cực đại)
-    // Accuracy: Chỉ cần tô được 15% diện tích của cái Hitbox khổng lồ kia là đậu.
-    const accuracy = matchedPixels / targetPixels; 
-    
-    // Messiness: Cho phép vẽ nguệch ngoạc ra ngoài gấp 4 lần diện tích chữ mẫu vẫn OK.
-    const messiness = wrongPixels / targetPixels;
+    // 4. Tính điểm Precision (Độ chính xác)
+    // "Trong những gì bạn vẽ, bao nhiêu % là đúng?"
+    const precision = hitPixels / userPixels;
 
-    // console.log(`Acc: ${accuracy.toFixed(2)} (cần > 0.15), Mess: ${messiness.toFixed(2)} (cần < 4.0)`);
+    // console.log(`Precision: ${(precision*100).toFixed(0)}%`);
 
-    // --- ĐIỀU KIỆN THẮNG DỄ DÀNG HƠN ---
-    if (accuracy > 0.15 && messiness < 4.0) {
-        // SUCCESS
+    // --- ĐIỀU KIỆN THẮNG SIÊU DỄ ---
+    // Chỉ cần 40% nét vẽ của bạn chạm vào vùng mẫu là ĐÚNG.
+    // (Cho phép bạn vẽ nguệch ngoạc, nét thừa, hoặc hơi lệch ra ngoài thoải mái)
+    if (precision > 0.40) {
         fireLaserAction(inkTargetMeteor.tex, inkTargetMeteor);
         createMagicExplosion();
         clearInkCanvas();
         
-        // Khen thưởng
-        const praises = ["TUYỆT VỜI! ⚡", "CHUẨN! ✨", "TỐC ĐỘ! 🔥", "THẦN THÁNH! 🔮"];
+        const praises = ["TUYỆT VỜI! ⚡", "CHUẨN! ✨", "TỐC ĐỘ! 🔥"];
         showFloatingText(width/2, height/2 - 50, praises[Math.floor(Math.random()*praises.length)]);
     } else {
-        // FAIL
+        // Thất bại
         gameCombo = 0;
-        let msg = "Vẽ lại đi! ❌";
-        if (accuracy <= 0.15) msg = "Viết to hoặc rõ hơn! ✍️"; 
+        showFloatingText(width / 2, height / 2, "Chưa khớp! ❌");
         
-        showFloatingText(width / 2, height / 2, msg);
-
-        // Hiệu ứng rung nhẹ
+        // Rung nhẹ
         const container = document.getElementById('ink-container');
         container.style.transform = "translateX(5px)";
         setTimeout(() => container.style.transform = "translateX(0)", 100);
