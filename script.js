@@ -602,7 +602,6 @@ function setupInkCanvas() {
     inkCanvas.width = container.offsetWidth;
     inkCanvas.height = container.offsetHeight;
     
-    // Sync Logic Canvas size
     logicCanvas.width = inkCanvas.width;
     logicCanvas.height = inkCanvas.height;
 
@@ -618,7 +617,18 @@ function setupInkCanvas() {
 
     // Button Events
     const btnCast = document.getElementById('btn-cast-spell');
-    if(btnCast) btnCast.onclick = castSpell; // Logic bắn thủ công
+    if(btnCast) btnCast.onclick = castSpell;
+    
+    // --- MỚI: GÁN SỰ KIỆN NÚT XÓA ---
+    const btnClear = document.getElementById('btn-clear-ink');
+    if(btnClear) {
+        btnClear.onclick = () => {
+            clearInkCanvas();
+            // Thêm hiệu ứng rung nhẹ để biết đã xóa
+            inkCanvas.style.opacity = '0.5';
+            setTimeout(() => inkCanvas.style.opacity = '1', 100);
+        };
+    }
 
     refreshInkTarget();
 }
@@ -674,17 +684,21 @@ function draw(e) {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    inkCtx.lineWidth = 15;
+    // --- CẬP NHẬT: GIẢM ĐỘ DÀY NÉT VẼ ---
+    inkCtx.lineWidth = 6; // Giảm từ 15 xuống 6 (Nét thanh mảnh)
     inkCtx.lineCap = 'round';
     inkCtx.lineJoin = 'round';
-    inkCtx.strokeStyle = '#d8b4fe'; // Màu mực tím
-    inkCtx.shadowBlur = 10;
+    inkCtx.strokeStyle = '#d8b4fe'; 
+    
+    // Giảm độ nhòe bóng (Glow) để nét vẽ sắc sảo hơn
+    inkCtx.shadowBlur = 5; // Giảm từ 10 xuống 5
     inkCtx.shadowColor = '#a855f7';
     
     inkCtx.lineTo(x, y);
     inkCtx.stroke();
     
-    if(Math.random() > 0.8) createMagicParticle(x, y);
+    // Giảm tỷ lệ sinh hạt ma thuật để đỡ rối mắt khi vẽ nét nhỏ
+    if(Math.random() > 0.9) createMagicParticle(x, y);
 }
 
 function stopDrawing() {
