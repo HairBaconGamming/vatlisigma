@@ -125,7 +125,7 @@
                                 <select id="game-mode-select">
                                     <option value="multiple">Trắc nghiệm</option>
                                     <option value="essay">Tự luận (Gõ phím)</option>
-                                    <option value="ink">✍️ Pháp Sư (Vẽ hình)</option>
+                                    <option value="ink">✍️ Pháp Sư (Vẽ phép)</option>
                                 </select>
                             </div>
                         </div>
@@ -150,9 +150,13 @@
                 <div id="game-controls" class="game-controls hidden"></div>
 
                 <div id="ink-container" class="hidden">
-                    <div class="magic-circle-bg"></div>
                     <canvas id="ink-canvas"></canvas>
-                    <div class="ink-instruction">Vẽ theo nét chữ để niệm chú!</div>
+                    
+                    <div id="ink-target-display"></div>
+
+                    <button id="btn-cast-spell" class="cast-btn">🔮 NIỆM CHÚ</button>
+                    
+                    <div class="ink-instruction">Vẽ đè lên công thức rồi bấm Niệm Chú!</div>
                 </div>
             </div>
         </div>

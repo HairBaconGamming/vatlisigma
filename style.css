@@ -652,63 +652,60 @@ math-field:focus-within {
 
 /* --- INK MODE: MAGIC VISUALS --- */
 
-/* Container bao quanh vùng vẽ */
+/* --- INK MODE: MAGIC VISUALS (UPDATED) --- */
+
 #ink-container {
-    position: absolute;
-    bottom: 0; left: 0; width: 100%; height: 280px;
-    background: linear-gradient(to top, rgba(15, 23, 42, 1), rgba(15, 23, 42, 0.6));
-    border-top: 2px solid #a855f7; /* Màu tím ma thuật */
+    position: absolute; bottom: 0; left: 0; width: 100%; height: 320px; /* Cao hơn chút để chứa nút */
+    background: linear-gradient(to top, rgba(15, 23, 42, 1), rgba(15, 23, 42, 0.8));
+    border-top: 2px solid #a855f7;
     box-shadow: 0 -5px 20px rgba(168, 85, 247, 0.4);
-    display: flex; justify-content: center; align-items: center;
-    z-index: 50;
-    backdrop-filter: blur(5px);
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    z-index: 50; backdrop-filter: blur(5px);
 }
 
-/* Vòng tròn ma pháp nền */
-.magic-circle-bg {
+/* Layer hiển thị LaTeX mẫu */
+#ink-target-display {
     position: absolute;
-    width: 250px; height: 250px;
-    border: 2px dashed rgba(168, 85, 247, 0.3);
-    border-radius: 50%;
-    animation: spin 10s linear infinite;
-    pointer-events: none;
+    top: 50%; left: 50%; transform: translate(-50%, -60%);
+    font-size: 3em; color: rgba(255, 255, 255, 0.2); /* Mờ để làm nền */
+    pointer-events: none; user-select: none;
+    z-index: 51;
+    white-space: nowrap;
+    text-shadow: 0 0 10px rgba(255,255,255,0.1);
 }
-@keyframes spin { 100% { transform: rotate(360deg); } }
 
-/* Canvas vẽ chính */
+/* Canvas đè lên trên */
 #ink-canvas {
-    position: relative;
-    z-index: 55;
-    background: transparent;
-    cursor: crosshair;
-    touch-action: none; /* Chặn cuộn trang trên mobile */
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 55; cursor: crosshair; touch-action: none;
 }
+
+/* Nút Niệm Chú (Bự và Dễ Bấm) */
+.cast-btn {
+    position: absolute; bottom: 20px; right: 20px; /* Góc phải dưới */
+    padding: 15px 40px;
+    font-size: 1.5em; font-weight: 900; letter-spacing: 1px;
+    color: #fff; background: linear-gradient(45deg, #7c3aed, #db2777);
+    border: 3px solid #fdf4ff; border-radius: 50px;
+    box-shadow: 0 0 15px #d8b4fe, 0 5px 0 #4c1d95;
+    cursor: pointer; z-index: 60;
+    transition: all 0.1s;
+}
+.cast-btn:active { transform: translateY(5px); box-shadow: 0 0 5px #d8b4fe, 0 0 0 #4c1d95; }
+.cast-btn:hover { filter: brightness(1.2); }
 
 .ink-instruction {
-    position: absolute; bottom: 10px; width: 100%; text-align: center;
-    color: #e9d5ff; font-size: 0.9em; pointer-events: none;
-    text-shadow: 0 0 5px #a855f7;
-    animation: pulse 2s infinite;
+    position: absolute; top: 10px; width: 100%; text-align: center;
+    color: #e9d5ff; font-size: 0.9em; pointer-events: none; z-index: 52;
 }
 
-/* Hiệu ứng hạt ma thuật khi vẽ */
+/* Hiệu ứng hạt ma thuật */
 .magic-particle {
-    position: absolute;
-    width: 6px; height: 6px;
-    background: #fdf4ff;
-    border-radius: 50%;
-    pointer-events: none;
-    box-shadow: 0 0 10px #d8b4fe, 0 0 20px #a855f7;
-    animation: particleFade 0.8s ease-out forwards;
-    z-index: 60;
+    position: absolute; width: 8px; height: 8px; background: #fdf4ff; border-radius: 50%;
+    pointer-events: none; box-shadow: 0 0 10px #d8b4fe;
+    animation: particleFade 0.8s ease-out forwards; z-index: 60;
 }
+@keyframes particleFade { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0) translate(var(--mx), var(--my)); } }
 
-@keyframes particleFade {
-    0% { opacity: 1; transform: scale(1) translate(0, 0); }
-    100% { opacity: 0; transform: scale(0) translate(var(--mx), var(--my)); }
-}
-
-/* Chỉnh lại layout game khi bật Ink Mode */
-#game-container-main.ink-active #player-ship {
-    bottom: 290px; /* Đẩy tàu lên trên vùng vẽ */
-}
+/* Layout adjustments */
+#game-container-main.ink-active #player-ship { bottom: 330px; }

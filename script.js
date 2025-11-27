@@ -504,10 +504,19 @@ let gamePool = [];
 let gameMode = 'multiple'; 
 let gameTopic = 'all';
 let inkCanvas, inkCtx, targetInkText = "", isDrawing = false;
-let inkTargetMeteor = null; // Kẻ địch đang bị khóa mục tiêu để vẽ
+let inkTargetMeteor = null; 
+// Logic Buffer (Canvas ẩn để chấm điểm)
+let logicCanvas, logicCtx; 
 
 // --- INIT SETTINGS ---
 document.addEventListener('DOMContentLoaded', () => {
+    initGameSettings();
+    // Pre-create logic canvas
+    logicCanvas = document.createElement('canvas');
+    logicCtx = logicCanvas.getContext('2d', { willReadFrequently: true });
+});
+
+function initGameSettings() {
     const topicSelect = document.getElementById('game-topic-select');
     if(topicSelect) {
         topicSelect.innerHTML = '<option value="all">🌐 Tất cả</option>';
@@ -517,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
             topicSelect.appendChild(opt);
         });
     }
-});
+}
 
 function startGame() {
     if(isGameRunning) return;
@@ -530,10 +539,9 @@ function startGame() {
     gameTopic = document.getElementById('game-topic-select').value;
     gameMode = document.getElementById('game-mode-select').value;
 
-    // Tinh chỉnh tốc độ cho các chế độ
     let spawnRate = 2500;
     if (gameMode === 'essay') { difficultyMultiplier /= 4; spawnRate = 5000; }
-    if (gameMode === 'ink') { difficultyMultiplier /= 5; spawnRate = 6000; } // Vẽ tốn thời gian nên chậm lại x5
+    if (gameMode === 'ink') { difficultyMultiplier /= 5; spawnRate = 6000; } 
 
     // 2. FILTER DATA
     gamePool = formulas.filter(f => {
@@ -560,7 +568,6 @@ function startGame() {
     document.getElementById('game-overlay').classList.add('hidden');
     document.getElementById('player-ship').classList.remove('hidden');
     
-    // Xử lý giao diện Ink Mode
     const inkContainer = document.getElementById('ink-container');
     const controls = document.getElementById('game-controls');
     const mainContainer = document.getElementById('game-container-main');
@@ -578,75 +585,79 @@ function startGame() {
     }
 
     updateGameUI();
-    spawnMeteor(); // Spawn ngay lập tức
+    spawnMeteor(); 
 
     // 4. LOOPS
     gameInterval = setInterval(gameLoop, 16);
     startSpawnLoop(spawnRate);
 }
 
-// --- LOGIC VẼ (INK MODE) ---
+// --- LOGIC VẼ MA THUẬT (INK MODE - NÂNG CAO) ---
+
 function setupInkCanvas() {
     inkCanvas = document.getElementById('ink-canvas');
     inkCtx = inkCanvas.getContext('2d', { willReadFrequently: true });
     
-    // Resize canvas
     const container = document.getElementById('ink-container');
     inkCanvas.width = container.offsetWidth;
     inkCanvas.height = container.offsetHeight;
+    
+    // Sync Logic Canvas size
+    logicCanvas.width = inkCanvas.width;
+    logicCanvas.height = inkCanvas.height;
 
-    // Events
+    // Events Drawing
     inkCanvas.onmousedown = startDrawing;
     inkCanvas.onmousemove = draw;
     inkCanvas.onmouseup = stopDrawing;
+    inkCanvas.onmouseleave = stopDrawing;
+    
     inkCanvas.ontouchstart = (e) => { e.preventDefault(); startDrawing(e.touches[0]); };
     inkCanvas.ontouchmove = (e) => { e.preventDefault(); draw(e.touches[0]); };
     inkCanvas.ontouchend = stopDrawing;
 
-    refreshInkTarget(); // Vẽ mẫu chữ đầu tiên
+    // Button Events
+    const btnCast = document.getElementById('btn-cast-spell');
+    if(btnCast) btnCast.onclick = castSpell; // Logic bắn thủ công
+
+    refreshInkTarget();
 }
 
 function refreshInkTarget() {
     if(gameMode !== 'ink') return;
     
-    // Tìm mục tiêu thấp nhất để vẽ
+    clearInkCanvas();
+    
     if(gameMeteors.length === 0) {
-        targetInkText = "";
-        inkTargetMeteor = null;
-        clearInkCanvas();
+        targetInkText = ""; inkTargetMeteor = null;
+        document.getElementById('ink-target-display').innerHTML = "";
         return;
     }
     
-    // Chọn thiên thạch thấp nhất làm mục tiêu
     inkTargetMeteor = gameMeteors.reduce((p, c) => (p.y > c.y) ? p : c);
-    
-    // Lấy công thức rút gọn để vẽ cho dễ (ví dụ: "F=ma" thay vì cả đống LaTeX)
-    // Tạm thời dùng raw Tex nhưng bỏ các ký tự lạ
-    let displayTex = inkTargetMeteor.tex.replace(/\\/g, '').replace(/_{/g, '').replace(/}/g, '');
-    if(displayTex.length > 8) displayTex = displayTex.substring(0, 8) + "..";
-    targetInkText = displayTex;
+    targetInkText = inkTargetMeteor.tex;
 
-    drawInkTemplate();
+    // 1. Hiển thị Visual (LaTeX đẹp cho người dùng đồ theo)
+    const displayDiv = document.getElementById('ink-target-display');
+    displayDiv.innerHTML = `\\[${targetInkText}\\]`;
+    MathJax.typesetPromise([displayDiv]);
+
+    // 2. Vẽ Logic Buffer (Dùng font serif để giả lập hình dáng chữ cho máy chấm điểm)
+    logicCtx.clearRect(0, 0, logicCanvas.width, logicCanvas.height);
+    logicCtx.save();
+    logicCtx.font = "italic bold 60px 'Times New Roman', serif"; // Giả lập style MathJax
+    logicCtx.textAlign = "center";
+    logicCtx.textBaseline = "middle";
+    logicCtx.fillStyle = "white";
+    // Vẽ chữ vào giữa canvas ẩn
+    // Lưu ý: Vị trí vẽ này phải khớp tương đối với vị trí div #ink-target-display
+    // Div đang translate(-50%, -60%). Canvas vẽ ở width/2, height/2 - offset
+    logicCtx.fillText(normalizeTex(targetInkText), logicCanvas.width/2, logicCanvas.height/2 - 10);
+    logicCtx.restore();
 }
 
 function clearInkCanvas() {
     inkCtx.clearRect(0, 0, inkCanvas.width, inkCanvas.height);
-}
-
-function drawInkTemplate() {
-    clearInkCanvas();
-    if(!targetInkText) return;
-
-    inkCtx.save();
-    // Vẽ chữ mẫu (Màu xám mờ để đồ theo)
-    inkCtx.font = "bold 80px Arial"; // Font to
-    inkCtx.textAlign = "center";
-    inkCtx.textBaseline = "middle";
-    inkCtx.fillStyle = "rgba(255, 255, 255, 0.15)";
-    inkCtx.fillText(targetInkText, inkCanvas.width/2, inkCanvas.height/2);
-    
-    // Lưu lại vùng pixel có chữ (để so sánh sau này)
-    inkCtx.restore();
 }
 
 function startDrawing(e) {
@@ -663,90 +674,99 @@ function draw(e) {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Vẽ nét người chơi (Neon tím)
     inkCtx.lineWidth = 15;
     inkCtx.lineCap = 'round';
-    inkCtx.strokeStyle = '#d8b4fe'; // Tím nhạt
-    inkCtx.shadowBlur = 15;
-    inkCtx.shadowColor = '#a855f7'; // Glow tím đậm
+    inkCtx.lineJoin = 'round';
+    inkCtx.strokeStyle = '#d8b4fe'; // Màu mực tím
+    inkCtx.shadowBlur = 10;
+    inkCtx.shadowColor = '#a855f7';
     
     inkCtx.lineTo(x, y);
     inkCtx.stroke();
     
-    // Tạo hiệu ứng hạt
-    if(Math.random() > 0.7) createMagicParticle(x, y);
+    if(Math.random() > 0.8) createMagicParticle(x, y);
 }
 
 function stopDrawing() {
-    if(!isDrawing) return;
     isDrawing = false;
-    checkInkMatch();
+    inkCtx.beginPath(); // Reset path để nét sau không nối nét trước
 }
 
-function checkInkMatch() {
-    if(!inkTargetMeteor) return;
+// --- LOGIC CHẤM ĐIỂM "XỊN" (CHECK LOGIC) ---
+function castSpell() {
+    if(!inkTargetMeteor || gameMode !== 'ink') return;
 
-    // THUẬT TOÁN KIỂM TRA:
-    // 1. Lấy dữ liệu pixel toàn canvas
-    const imageData = inkCtx.getImageData(0, 0, inkCanvas.width, inkCanvas.height);
-    const data = imageData.data;
-    let paintedPixels = 0;
+    // Lấy dữ liệu pixel
+    const userImg = inkCtx.getImageData(0, 0, inkCanvas.width, inkCanvas.height);
+    const targetImg = logicCtx.getImageData(0, 0, logicCanvas.width, logicCanvas.height);
     
-    // Đếm số pixel đã tô màu (người chơi vẽ)
-    // Lưu ý: Đây là thuật toán đơn giản hóa. 
-    // Đúng ra phải so sánh overlap giữa template và user draw.
-    // Để game mượt, ta dùng cơ chế: "Vẽ đủ lượng mực lên vùng trung tâm"
+    const uData = userImg.data;
+    const tData = targetImg.data;
     
-    for(let i = 0; i < data.length; i += 4) {
-        // Nếu pixel có alpha > 0 (đã vẽ)
-        if(data[i+3] > 0) {
-            paintedPixels++;
+    let targetPixels = 0;
+    let matchedPixels = 0;
+    let wrongPixels = 0;
+
+    // Quét từng pixel (bước nhảy 4 vì r,g,b,a)
+    for(let i=3; i<uData.length; i+=4) {
+        const isTarget = tData[i] > 100; // Pixel này có chữ mẫu không?
+        const isUser = uData[i] > 50;    // Pixel này người dùng có vẽ không?
+
+        if (isTarget) {
+            targetPixels++;
+            if (isUser) matchedPixels++;
+        } else if (isUser) {
+            wrongPixels++; // Vẽ ra ngoài vùng chữ
         }
     }
 
-    // Ngưỡng chiến thắng: Vẽ đủ số lượng pixel nhất định (tùy độ dài chữ)
-    const requiredPixels = targetInkText.length * 1000; // Ước lượng
+    if (targetPixels === 0) return; // Không có chữ mẫu (lỗi)
+
+    // Công thức tính điểm:
+    // Độ chính xác = (Số pixel trùng khớp) / (Tổng pixel chữ mẫu)
+    // Phạt = Vẽ lung tung ra ngoài quá nhiều
     
-    // Nếu vẽ đủ nhiều -> Giả định là đúng (Game for fun)
-    // Để chính xác hơn, ta nên dùng Composite Operation 'source-in' nhưng hơi phức tạp cho code ngắn.
-    
-    if(paintedPixels > 2500) { // Số magic number test thử
+    const accuracy = matchedPixels / targetPixels;
+    const messiness = wrongPixels / targetPixels;
+
+    // DEBUG: console.log(`Acc: ${accuracy.toFixed(2)}, Mess: ${messiness.toFixed(2)}`);
+
+    // Điều kiện thắng: Phải tô đúng > 35% chữ VÀ không tô bậy quá 3 lần diện tích chữ
+    if (accuracy > 0.35 && messiness < 3.0) {
+        // Success
         fireLaserAction(inkTargetMeteor.tex, inkTargetMeteor);
+        createMagicExplosion();
+        clearInkCanvas();
+    } else {
+        // Fail
+        gameCombo = 0;
+        showFloatingText(inkCanvas.width/2, inkCanvas.height/2, "Vẽ lại đi! ❌");
         
-        // Hiệu ứng Clear Canvas đẹp mắt
-        inkCanvas.style.transition = 'opacity 0.2s';
-        inkCanvas.style.opacity = '0';
-        setTimeout(() => {
-            clearInkCanvas();
-            inkCanvas.style.opacity = '1';
-            refreshInkTarget(); // Chuyển sang chữ tiếp theo
-        }, 200);
+        // Hiệu ứng rung lắc bảng vẽ
+        const container = document.getElementById('ink-container');
+        container.style.transform = "translateX(10px)";
+        setTimeout(() => container.style.transform = "translateX(0)", 100);
+        setTimeout(() => container.style.transform = "translateX(-10px)", 200);
+        setTimeout(() => container.style.transform = "translateX(0)", 300);
     }
 }
 
-function createMagicParticle(x, y) {
-    const p = document.createElement('div');
-    p.className = 'magic-particle';
-    p.style.left = (x + document.getElementById('ink-container').offsetLeft) + 'px'; // Canh chỉnh lại tọa độ
-    // Fix tọa độ vì canvas nằm trong container relative
-    // Thực tế canvas full container, nên x y là chuẩn trong container
-    // Cần append vào container
-    
+function createMagicExplosion() {
+    // Hiệu ứng nổ khi niệm chú thành công
     const container = document.getElementById('ink-container');
-    p.style.left = x + 'px';
-    p.style.top = y + 'px';
-    
-    // Random hướng bay
-    const dx = (Math.random() - 0.5) * 100 + 'px';
-    const dy = (Math.random() - 0.5) * 100 + 'px';
-    p.style.setProperty('--mx', dx);
-    p.style.setProperty('--my', dy);
-    
-    container.appendChild(p);
-    setTimeout(() => p.remove(), 800);
+    const boom = document.createElement('div');
+    boom.style.position = 'absolute';
+    boom.style.top = '50%'; boom.style.left = '50%';
+    boom.style.width = '100px'; boom.style.height = '100px';
+    boom.style.transform = 'translate(-50%, -50%)';
+    boom.style.borderRadius = '50%';
+    boom.style.boxShadow = '0 0 50px 20px #fff, inset 0 0 20px #a855f7';
+    boom.style.animation = 'particleFade 0.5s forwards';
+    container.appendChild(boom);
+    setTimeout(() => boom.remove(), 500);
 }
 
-// --- CÁC HÀM CŨ (GIỮ NGUYÊN HOẶC CHỈNH SỬA NHỎ) ---
+// --- CORE GAME LOGIC (GIỮ NGUYÊN TỪ PHIÊN BẢN TRƯỚC) ---
 
 function setupGameControlsUI() {
     const container = document.getElementById('game-controls');
@@ -765,7 +785,9 @@ function setupGameControlsUI() {
             else mf.focus();
         };
         document.getElementById('btn-fire-essay').onclick = handleFire;
-        mf.addEventListener('keydown', (e) => { if(e.key==='Enter'||e.keyCode===13){e.preventDefault(); handleFire();} });
+        mf.addEventListener('keydown', (e) => { 
+            if(e.key==='Enter'||e.keyCode===13){e.preventDefault(); handleFire();} 
+        });
         setTimeout(()=>mf.focus(),100);
     }
 }
@@ -776,6 +798,7 @@ function spawnMeteor() {
     const el = document.createElement('div');
     el.className = 'meteor';
     el.innerHTML = `<span class="meteor-topic">${randomFormula.group}</span><div class="meteor-name">${randomFormula.desc}</div>`;
+    
     const w = document.getElementById('game-area').offsetWidth;
     const randomX = Math.random() * (w - 140);
     el.style.left = randomX + 'px'; el.style.top = '-80px';
@@ -784,7 +807,6 @@ function spawnMeteor() {
     const meteorObj = { id:randomFormula.id, tex:randomFormula.tex, el:el, y:-80, x:randomX };
     gameMeteors.push(meteorObj);
 
-    // Ink Mode update target nếu chưa có
     if(gameMode === 'ink' && !inkTargetMeteor) refreshInkTarget();
     if(gameMode === 'multiple' && gameMeteors.length===1) refreshGameOptions();
 }
@@ -792,8 +814,7 @@ function spawnMeteor() {
 function gameLoop() {
     const container = document.getElementById('game-container-main');
     if(!container) return;
-    // Nếu Ink Mode, vùng chết cao hơn (do có bảng vẽ)
-    const deadZone = container.offsetHeight - (gameMode==='ink' ? 300 : 80);
+    const deadZone = container.offsetHeight - (gameMode==='ink' ? 340 : 80);
 
     gameMeteors.forEach((m, index) => {
         m.y += gameCurrentSpeed;
@@ -811,7 +832,7 @@ function handleLifeLost(index) {
     const main = document.getElementById('game-container-main');
     main.classList.remove('shake'); void main.offsetWidth; main.classList.add('shake');
     
-    if(gameMode==='ink' && m === inkTargetMeteor) refreshInkTarget(); // Đổi mục tiêu nếu mục tiêu cũ đâm vào tàu
+    if(gameMode==='ink' && m === inkTargetMeteor) refreshInkTarget();
 
     updateGameUI();
     if (gameLives <= 0) stopGame(true);
@@ -847,12 +868,13 @@ function fireLaserAction(texValue, specificTarget) {
         gameCombo++; checkLevelUp(); updateGameUI();
         
         if(gameMode === 'multiple') refreshGameOptions();
-        if(gameMode === 'ink' && target === inkTargetMeteor) refreshInkTarget(); // Vẽ xong, đổi chữ mới
+        if(gameMode === 'ink' && target === inkTargetMeteor) refreshInkTarget();
     } else {
         gameCombo=0; gameScore=Math.max(0,gameScore-10); updateGameUI();
     }
 }
 
+// Helpers & Visuals
 function createLaserVisual(tx, ty) {
     const ga = document.getElementById('game-area');
     const ship = document.getElementById('player-ship');
@@ -871,26 +893,35 @@ function createLaserVisual(tx, ty) {
     ga.appendChild(l); setTimeout(()=>l.remove(),100);
 }
 
-// Helpers
 function startSpawnLoop(t) { if(spawnInterval) clearInterval(spawnInterval); spawnInterval=setInterval(spawnMeteor,t); }
+
 function stopGame(isOver=false) {
     isGameRunning=false; clearInterval(gameInterval); clearInterval(spawnInterval);
-    document.getElementById('game-overlay').classList.remove('hidden');
-    document.getElementById('game-controls').classList.add('hidden');
-    document.getElementById('ink-container').classList.add('hidden');
-    document.getElementById('player-ship').classList.add('hidden');
+    const overlay = document.getElementById('game-overlay');
+    const controls = document.getElementById('game-controls');
+    const ink = document.getElementById('ink-container');
+    const ship = document.getElementById('player-ship');
+
+    if(overlay) overlay.classList.remove('hidden');
+    if(controls) controls.classList.add('hidden');
+    if(ink) ink.classList.add('hidden');
+    if(ship) ship.classList.add('hidden');
     document.getElementById('game-container-main').classList.remove('ink-active');
 
     const t = document.querySelector('.game-title');
     const d = document.getElementById('overlay-desc');
     const b = document.getElementById('btn-start-game');
-    if(isOver){ t.textContent="💀 GAME OVER"; t.style.color="red"; d.innerHTML=`Điểm: ${gameScore}`; b.textContent="Thử lại 🔥"; }
-    else { t.textContent="DEFENSE COMMANDER"; t.style.color="#ef4444"; d.textContent="Tiếp tục?"; b.textContent="Tiếp tục 🚀"; }
+    
+    if(t && d && b) {
+        if(isOver){ t.textContent="💀 GAME OVER"; t.style.color="red"; d.innerHTML=`Điểm: ${gameScore}`; b.textContent="Thử lại 🔥"; }
+        else { t.textContent="DEFENSE COMMANDER"; t.style.color="#ef4444"; d.textContent="Sẵn sàng?"; b.textContent="Tiếp tục 🚀"; }
+    }
 }
-function calculateScore(){ return (gameMode==='essay'?30:10) + (gameCombo*2); }
+
+function calculateScore(){ return (gameMode==='essay'||gameMode==='ink'?30:10) + (gameCombo*2); }
 function checkLevelUp(){ if(Math.floor(gameScore/150)+1 > gameLevel){ gameLevel++; gameCurrentSpeed+=0.2; } }
 function showFloatingText(x,y,p){ 
-    const f=document.createElement('div'); f.className='floating-text'; f.style.left=(x+20)+'px'; f.style.top=y+'px'; f.innerHTML=`+${p}`; 
+    const f=document.createElement('div'); f.className='floating-text'; f.style.left=(x+20)+'px'; f.style.top=y+'px'; f.innerHTML=typeof p === 'number' ? `+${p}` : p; 
     document.getElementById('game-area').appendChild(f); setTimeout(()=>f.remove(),1000); 
 }
 function createExplosion(x,y){
@@ -906,7 +937,6 @@ function updateGameUI(){
     else cb.classList.add('hidden');
 }
 function refreshGameOptions() {
-    // Logic trắc nghiệm (giữ nguyên từ cũ nếu cần, code này tập trung Ink)
     const c = document.getElementById('game-controls'); c.innerHTML='';
     let t = gameMeteors.length? gameMeteors.reduce((p,c)=>(p.y>c.y)?p:c) : null;
     let opts = [];
@@ -917,4 +947,14 @@ function refreshGameOptions() {
         b.onclick=()=>fireLaserAction(o.tex,null); c.appendChild(b);
     });
     MathJax.typesetPromise([c]);
+}
+function createMagicParticle(x, y) {
+    const p = document.createElement('div');
+    p.className = 'magic-particle';
+    const container = document.getElementById('ink-container');
+    p.style.left = x + 'px'; p.style.top = y + 'px';
+    const dx = (Math.random() - 0.5) * 100 + 'px';
+    const dy = (Math.random() - 0.5) * 100 + 'px';
+    p.style.setProperty('--mx', dx); p.style.setProperty('--my', dy);
+    container.appendChild(p); setTimeout(() => p.remove(), 800);
 }
