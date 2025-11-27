@@ -647,22 +647,24 @@ function refreshInkTarget() {
     inkTargetMeteor = gameMeteors.reduce((p, c) => (p.y > c.y) ? p : c);
     targetInkText = inkTargetMeteor.tex;
 
-    // 1. Hiển thị Visual (LaTeX đẹp cho người dùng đồ theo)
+    // 1. Hiển thị Visual (LaTeX đẹp cho người dùng nhìn)
     const displayDiv = document.getElementById('ink-target-display');
     displayDiv.innerHTML = `\\[${targetInkText}\\]`;
     MathJax.typesetPromise([displayDiv]);
 
-    // 2. Vẽ Logic Buffer (Dùng font serif để giả lập hình dáng chữ cho máy chấm điểm)
+    // 2. Vẽ Logic Buffer (Để máy chấm điểm)
+    // Tăng độ dày nét vẽ mẫu lên để người chơi dễ đồ trúng hơn
     logicCtx.clearRect(0, 0, logicCanvas.width, logicCanvas.height);
     logicCtx.save();
-    logicCtx.font = "italic bold 60px 'Times New Roman', serif"; // Giả lập style MathJax
+    // Dùng font đơn giản để tạo khung xương chuẩn
+    logicCtx.font = "bold 80px Arial, sans-serif"; 
     logicCtx.textAlign = "center";
     logicCtx.textBaseline = "middle";
-    logicCtx.fillStyle = "white";
-    // Vẽ chữ vào giữa canvas ẩn
-    // Lưu ý: Vị trí vẽ này phải khớp tương đối với vị trí div #ink-target-display
-    // Div đang translate(-50%, -60%). Canvas vẽ ở width/2, height/2 - offset
-    logicCtx.fillText(normalizeTex(targetInkText), logicCanvas.width/2, logicCanvas.height/2 - 10);
+    logicCtx.fillStyle = "black"; // Màu không quan trọng, chỉ cần alpha
+    
+    // Vẽ chữ vào giữa canvas ẩn (cần khớp vị trí với div hiển thị)
+    // Lưu ý: Tinh chỉnh offset Y để khớp với CSS transform(-50%, -60%) của div
+    logicCtx.fillText(normalizeTex(targetInkText), logicCanvas.width/2, logicCanvas.height/2 - 20);
     logicCtx.restore();
 }
 
@@ -711,57 +713,94 @@ function castSpell() {
     if(!inkTargetMeteor || gameMode !== 'ink') return;
 
     // Lấy dữ liệu pixel
-    const userImg = inkCtx.getImageData(0, 0, inkCanvas.width, inkCanvas.height);
-    const targetImg = logicCtx.getImageData(0, 0, logicCanvas.width, logicCanvas.height);
+    const width = inkCanvas.width;
+    const height = inkCanvas.height;
+    const userImg = inkCtx.getImageData(0, 0, width, height);
+    const targetImg = logicCtx.getImageData(0, 0, width, height);
     
-    const uData = userImg.data;
-    const tData = targetImg.data;
-    
-    let targetPixels = 0;
-    let matchedPixels = 0;
-    let wrongPixels = 0;
+    // CẤU HÌNH THUẬT TOÁN GRID
+    const gridSize = 15; // Kích thước ô lưới (càng lớn càng dễ tính, càng nhỏ càng gắt)
+    let totalTargetBlocks = 0; // Tổng số ô chứa nét mẫu
+    let matchedBlocks = 0;     // Số ô người chơi vẽ trúng
+    let wrongBlocks = 0;       // Số ô người chơi vẽ bậy (ra ngoài)
 
-    // Quét từng pixel (bước nhảy 4 vì r,g,b,a)
-    for(let i=3; i<uData.length; i+=4) {
-        const isTarget = tData[i] > 100; // Pixel này có chữ mẫu không?
-        const isUser = uData[i] > 50;    // Pixel này người dùng có vẽ không?
+    // Quét qua từng ô lưới (Grid Cell) thay vì từng pixel
+    for (let y = 0; y < height; y += gridSize) {
+        for (let x = 0; x < width; x += gridSize) {
+            
+            // Kiểm tra trong ô vuông này có mực không
+            let hasTargetInk = false;
+            let hasUserInk = false;
 
-        if (isTarget) {
-            targetPixels++;
-            if (isUser) matchedPixels++;
-        } else if (isUser) {
-            wrongPixels++; // Vẽ ra ngoài vùng chữ
+            // Quét pixel trong ô lưới hiện tại
+            // (Dùng vòng lặp tối ưu, chỉ quét mẫu đại diện để tăng tốc)
+            for (let gy = 0; gy < gridSize; gy+=2) {
+                if (y + gy >= height) break;
+                for (let gx = 0; gx < gridSize; gx+=2) {
+                    if (x + gx >= width) break;
+                    
+                    const index = ((y + gy) * width + (x + gx)) * 4;
+                    
+                    // Kênh Alpha > 50 coi như là có mực
+                    if (!hasTargetInk && targetImg.data[index + 3] > 50) hasTargetInk = true;
+                    if (!hasUserInk && userImg.data[index + 3] > 50) hasUserInk = true;
+                    
+                    if (hasTargetInk && hasUserInk) break; // Đã tìm thấy cả 2 thì next ô khác
+                }
+            }
+
+            // CHẤM ĐIỂM Ô LƯỚI
+            if (hasTargetInk) {
+                totalTargetBlocks++;
+                if (hasUserInk) matchedBlocks++; // Vẽ đúng chỗ cần vẽ
+            } else {
+                if (hasUserInk) wrongBlocks++;   // Vẽ vào chỗ trống (sai)
+            }
         }
     }
 
-    if (targetPixels === 0) return; // Không có chữ mẫu (lỗi)
+    if (totalTargetBlocks === 0) return; // Lỗi không có mẫu
 
-    // Công thức tính điểm:
-    // Độ chính xác = (Số pixel trùng khớp) / (Tổng pixel chữ mẫu)
-    // Phạt = Vẽ lung tung ra ngoài quá nhiều
-    
-    const accuracy = matchedPixels / targetPixels;
-    const messiness = wrongPixels / targetPixels;
+    // TÍNH TOÁN KẾT QUẢ
+    // 1. Độ đầy đủ (Completeness): Bạn đã vẽ được bao nhiêu % của công thức?
+    // Phải vẽ được ít nhất 70% nét của mẫu.
+    const completeness = matchedBlocks / totalTargetBlocks;
 
-    // DEBUG: console.log(`Acc: ${accuracy.toFixed(2)}, Mess: ${messiness.toFixed(2)}`);
+    // 2. Độ sạch (Cleanliness): Trong những gì bạn vẽ, bao nhiêu % là đúng?
+    // Phạt nặng nếu vẽ bậy. 
+    // Công thức: (Số ô đúng) / (Số ô đúng + Số ô sai * Hệ số phạt)
+    const accuracy = matchedBlocks / (matchedBlocks + (wrongBlocks * 1.5));
 
-    // Điều kiện thắng: Phải tô đúng > 35% chữ VÀ không tô bậy quá 3 lần diện tích chữ
-    if (accuracy > 0.35 && messiness < 3.0) {
-        // Success
+    // Debug để cân chỉnh độ khó (Bật F12 xem nếu cần)
+    console.log(`Độ đầy đủ: ${(completeness*100).toFixed(0)}% (Yêu cầu > 65%)`);
+    console.log(`Độ chính xác: ${(accuracy*100).toFixed(0)}% (Yêu cầu > 60%)`);
+
+    // ĐIỀU KIỆN CHIẾN THẮNG (Đã cân chỉnh cho trải nghiệm tốt nhất)
+    if (completeness > 0.65 && accuracy > 0.60) {
+        // --- THÀNH CÔNG ---
         fireLaserAction(inkTargetMeteor.tex, inkTargetMeteor);
         createMagicExplosion();
         clearInkCanvas();
-    } else {
-        // Fail
-        gameCombo = 0;
-        showFloatingText(inkCanvas.width/2, inkCanvas.height/2, "Vẽ lại đi! ❌");
         
-        // Hiệu ứng rung lắc bảng vẽ
+        // Hiệu ứng chữ khen thưởng
+        const praise = completeness > 0.9 ? "TUYỆT ĐỐI! ⚡" : "CHÍNH XÁC! ✨";
+        showFloatingText(width/2, height/2 - 50, praise);
+    } else {
+        // --- THẤT BẠI ---
+        gameCombo = 0;
+        
+        // Thông báo lỗi cụ thể để người chơi sửa
+        let msg = "Sai rồi! ❌";
+        if (completeness <= 0.65) msg = "Thiếu nét! ✍️";
+        else if (accuracy <= 0.60) msg = "Đừng vẽ thừa! 🚫";
+        
+        showFloatingText(width/2, height/2, msg);
+        
+        // Rung lắc bảng
         const container = document.getElementById('ink-container');
-        container.style.transform = "translateX(10px)";
-        setTimeout(() => container.style.transform = "translateX(0)", 100);
-        setTimeout(() => container.style.transform = "translateX(-10px)", 200);
-        setTimeout(() => container.style.transform = "translateX(0)", 300);
+        container.style.animation = 'none';
+        container.offsetHeight; /* trigger reflow */
+        container.style.animation = 'shake 0.3s';
     }
 }
 
